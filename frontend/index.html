@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Dashboard - Power Generation Analytics</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🌞 Solar Dashboard</h1>
+                <p class="subtitle">Power Generation Analytics (March 2012 - Present)</p>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="control-group">
+                <label for="viewType">View:</label>
+                <select id="viewType" class="select-input">
+                    <option value="daily">Daily</option>
+                    <option value="monthly" selected>Monthly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="startDate">Start Date:</label>
+                <input type="date" id="startDate" class="date-input">
+            </div>
+
+            <div class="control-group">
+                <label for="endDate">End Date:</label>
+                <input type="date" id="endDate" class="date-input">
+            </div>
+
+            <div class="control-group">
+                <button id="updateBtn" class="btn btn-primary">Update Chart</button>
+                <button id="resetBtn" class="btn btn-secondary">Reset to Last Year</button>
+            </div>
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="stats-container" id="statsContainer">
+            <div class="stat-card">
+                <div class="stat-label">Total Generation</div>
+                <div class="stat-value" id="totalGeneration">-</div>
+                <div class="stat-unit">kWh</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Average</div>
+                <div class="stat-value" id="avgGeneration">-</div>
+                <div class="stat-unit">kWh/period</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Peak Period</div>
+                <div class="stat-value" id="peakPeriod">-</div>
+                <div class="stat-unit" id="peakValue">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Data Points</div>
+                <div class="stat-value" id="dataPoints">-</div>
+                <div class="stat-unit">records</div>
+            </div>
+        </div>
+
+        <!-- Chart Container -->
+        <div class="chart-container">
+            <div id="loadingIndicator" class="loading-indicator">
+                <div class="spinner"></div>
+                <p>Loading data...</p>
+            </div>
+            <div id="errorMessage" class="error-message" style="display: none;">
+                <p>⚠️ <span id="errorText"></span></p>
+            </div>
+            <div id="chart"></div>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="info-panel">
+            <h3>About This Dashboard</h3>
+            <p>
+                This dashboard visualizes solar panel power generation data collected every 10 minutes 
+                since March 2012. Use the controls above to explore different time periods and aggregation levels.
+            </p>
+            <div class="info-grid">
+                <div class="info-item">
+                    <strong>Daily View:</strong> Shows total kWh generated per day
+                </div>
+                <div class="info-item">
+                    <strong>Monthly View:</strong> Shows total kWh generated per month
+                </div>
+                <div class="info-item">
+                    <strong>Yearly View:</strong> Shows total kWh generated per year
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2024 Solar Dashboard | Data updated in real-time from MariaDB</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/utils/api.js"></script>
+    <script src="js/charts/dailyChart.js"></script>
+    <script src="js/charts/monthlyChart.js"></script>
+    <script src="js/charts/yearlyChart.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
