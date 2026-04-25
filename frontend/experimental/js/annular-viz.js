@@ -32,6 +32,7 @@ class AnnularVisualization {
         this.currentData = [];
         this.allYearsMode = false;
         this.currentCurvature = 360;
+        this.selectedYear = null; // Track selected year for highlighting
         this.currentTimeWindow = this.geometryEngine.ONE_YEAR_MS;
         
         // Color schemes
@@ -490,14 +491,20 @@ class AnnularVisualization {
                 const yearStart = this.dateFromDayOfYear(year, startDayOfYear);
                 const yearEnd = this.dateFromDayOfYear(year, endDayOfYear);
                 
+                // Store current data temporarily
+                const tempData = this.currentData;
                 await this.loadSinglePeriodData(yearStart, yearEnd);
+                // Add the loaded data to allData
                 allData.push(...this.currentData);
+                // Restore for next iteration
+                this.currentData = tempData;
             } catch (error) {
                 console.warn(`Failed to load data for year ${year}:`, error);
             }
         }
         
         this.currentData = allData;
+        console.log(`Loaded multi-year data: ${allData.length} total points across ${new Set(allData.map(d => d.year)).size} years`);
     }
 
     /**
@@ -595,20 +602,21 @@ class AnnularVisualization {
             
             dataByYear.forEach((yearData, year) => {
                 const color = this.yearColors[colorIndex % this.yearColors.length];
+                const isSelected = this.selectedYear === year;
                 console.log(`  Year ${year}: ${yearData.length} points, color: ${color}`);
-                this.drawDataPath(yearData, maxValue, color);
+                this.drawDataPath(yearData, maxValue, color, year, isSelected);
                 colorIndex++;
             });
         } else {
             // Draw single year
-            this.drawDataPath(this.currentData, maxValue, this.singleYearColor);
+            this.drawDataPath(this.currentData, maxValue, this.singleYearColor, null, false);
         }
     }
 
     /**
      * Draw a data path using new geometry engine
      */
-    drawDataPath(data, maxValue, color) {
+    drawDataPath(data, maxValue, color, year = null, isSelected = false) {
         const sortedData = data.sort((a, b) => a.timestamp - b.timestamp);
         
         // Get time range for proper positioning
@@ -649,13 +657,35 @@ class AnnularVisualization {
             .y(d => d.y)
             .curve(d3.curveCardinal.tension(0.5));
         
-        this.dataGroup.append('path')
+        const path = this.dataGroup.append('path')
             .datum(points)
             .attr('d', line)
             .attr('class', 'data-path')
+            .attr('data-year', year)
             .style('stroke', color)
-            .style('stroke-width', 2)
-            .style('fill', 'none');
+            .style('stroke-width', isSelected ? '4px' : '2px')
+            .style('fill', 'none')
+            .style('opacity', this.selectedYear && !isSelected ? 0.3 : 1)
+            .style('cursor', year ? 'pointer' : 'default');
+        
+        // Add click handler for multi-year mode
+        if (year) {
+            path.on('click', () => {
+                this.toggleYearSelection(year);
+            });
+        }
+    }
+
+    /**
+     * Toggle year selection for highlighting
+     */
+    toggleYearSelection(year) {
+        if (this.selectedYear === year) {
+            this.selectedYear = null; // Deselect
+        } else {
+            this.selectedYear = year; // Select
+        }
+        this.render(); // Redraw with new selection
     }
 
     /**
@@ -676,6 +706,18 @@ class AnnularVisualization {
     }
 
     /**
+     * Toggle year selection for highlighting
+     */
+    toggleYearSelection(year) {
+        if (this.selectedYear === year) {
+            this.selectedYear = null; // Deselect
+        } else {
+            this.selectedYear = year; // Select
+        }
+        this.render(); // Redraw with new selection
+    }
+
+    /**
      * Update legend for multi-year mode
      */
     updateLegend() {
@@ -691,13 +733,23 @@ class AnnularVisualization {
         dataByYear.forEach((yearData, year) => {
             const color = this.yearColors[colorIndex % this.yearColors.length];
             const totalKwh = yearData.reduce((sum, d) => sum + d.kwh, 0);
+            const isSelected = this.selectedYear === year;
             
             const item = document.createElement('div');
             item.className = 'legend-item';
+            item.style.cursor = 'pointer';
+            item.style.fontWeight = isSelected ? 'bold' : 'normal';
+            item.style.opacity = this.selectedYear && !isSelected ? 0.5 : 1;
             item.innerHTML = `
                 <div class="legend-color" style="background-color: ${color}"></div>
                 <div class="legend-text">${year}: ${totalKwh.toFixed(0)} kWh</div>
             `;
+            
+            // Add click handler
+            item.addEventListener('click', () => {
+                this.toggleYearSelection(year);
+            });
+            
             legend.appendChild(item);
             
             colorIndex++;
