@@ -15,9 +15,9 @@ class SolarDataService {
   async getDailyData(startDate, endDate) {
     try {
       const query = `
-        SELECT 
+        SELECT
           DATE(DT) as date,
-          ROUND(SUM(CAST(PWR AS DECIMAL(10,2))) / 1000, 2) as totalKwh,
+          ROUND(SUM(CAST(PWR AS DECIMAL(10,2)) * (10.0/60.0)), 2) as totalKwh,
           ROUND(AVG(CAST(PWR AS DECIMAL(10,2))), 2) as avgPower,
           ROUND(MAX(CAST(PWR AS DECIMAL(10,2))), 2) as maxPower,
           ROUND(MIN(CAST(PWR AS DECIMAL(10,2))), 2) as minPower,
@@ -64,12 +64,12 @@ class SolarDataService {
   async getMonthlyData(startMonth, endMonth) {
     try {
       const query = `
-        SELECT 
+        SELECT
           DATE_FORMAT(DT, '%Y-%m') as month,
-          ROUND(SUM(CAST(PWR AS DECIMAL(10,2))) / 1000, 2) as totalKwh,
+          ROUND(SUM(CAST(PWR AS DECIMAL(10,2)) * (10.0/60.0)), 2) as totalKwh,
           ROUND(AVG(CAST(PWR AS DECIMAL(10,2))), 2) as avgPower,
           COUNT(DISTINCT DATE(DT)) as daysInMonth,
-          ROUND(SUM(CAST(PWR AS DECIMAL(10,2))) / 1000 / COUNT(DISTINCT DATE(DT)), 2) as avgDailyKwh
+          ROUND(SUM(CAST(PWR AS DECIMAL(10,2)) * (10.0/60.0)) / COUNT(DISTINCT DATE(DT)), 2) as avgDailyKwh
         FROM DTP
         WHERE DATE_FORMAT(DT, '%Y-%m') BETWEEN ? AND ?
         GROUP BY DATE_FORMAT(DT, '%Y-%m')
@@ -82,9 +82,9 @@ class SolarDataService {
       const monthsWithPeakDay = await Promise.all(
         rows.map(async (row) => {
           const peakDayQuery = `
-            SELECT 
+            SELECT
               DATE(DT) as date,
-              ROUND(SUM(CAST(PWR AS DECIMAL(10,2))) / 1000, 2) as totalKwh
+              ROUND(SUM(CAST(PWR AS DECIMAL(10,2)) * (10.0/60.0)), 2) as totalKwh
             FROM DTP
             WHERE DATE_FORMAT(DT, '%Y-%m') = ?
             GROUP BY DATE(DT)
@@ -130,12 +130,12 @@ class SolarDataService {
   async getYearlyData(startYear, endYear) {
     try {
       const query = `
-        SELECT 
+        SELECT
           YEAR(DT) as year,
-          ROUND(SUM(CAST(PWR AS DECIMAL(10,2))) / 1000, 2) as totalKwh,
+          ROUND(SUM(CAST(PWR AS DECIMAL(10,2)) * (10.0/60.0)), 2) as totalKwh,
           ROUND(AVG(CAST(PWR AS DECIMAL(10,2))), 2) as avgPower,
           COUNT(DISTINCT DATE_FORMAT(DT, '%Y-%m')) as monthsInYear,
-          ROUND(SUM(CAST(PWR AS DECIMAL(10,2))) / 1000 / COUNT(DISTINCT DATE_FORMAT(DT, '%Y-%m')), 2) as avgMonthlyKwh
+          ROUND(SUM(CAST(PWR AS DECIMAL(10,2)) * (10.0/60.0)) / COUNT(DISTINCT DATE_FORMAT(DT, '%Y-%m')), 2) as avgMonthlyKwh
         FROM DTP
         WHERE YEAR(DT) BETWEEN ? AND ?
         GROUP BY YEAR(DT)
@@ -148,9 +148,9 @@ class SolarDataService {
       const yearsWithPeakMonth = await Promise.all(
         rows.map(async (row) => {
           const peakMonthQuery = `
-            SELECT 
+            SELECT
               DATE_FORMAT(DT, '%Y-%m') as month,
-              ROUND(SUM(CAST(PWR AS DECIMAL(10,2))) / 1000, 2) as totalKwh
+              ROUND(SUM(CAST(PWR AS DECIMAL(10,2)) * (10.0/60.0)), 2) as totalKwh
             FROM DTP
             WHERE YEAR(DT) = ?
             GROUP BY DATE_FORMAT(DT, '%Y-%m')

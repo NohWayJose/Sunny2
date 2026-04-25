@@ -11,7 +11,16 @@ class AnnularVisualization {
         this.height = 800;
         this.centerX = this.width / 2;
         this.centerY = this.height / 2;
-        this.baseRadius = 250;
+        
+        // Layout dimensions - work from outside in
+        this.outerBorderRadius = 350; // Outer border
+        this.labelClearance = 20; // Space between outer border and labels (INSIDE)
+        this.labelHeight = 15; // Approximate label height
+        this.tickLength = 10; // Tick mark length
+        this.baseRadius = this.outerBorderRadius - this.labelClearance - this.labelHeight - this.tickLength; // Scale position
+        this.dataExtension = 100; // Max data extension inward from scale
+        this.innerClearance = 20; // Space inside data area
+        this.innerBorderRadius = this.baseRadius - this.dataExtension - this.innerClearance; // Inner border
         
         // Components
         this.geometryEngine = new GeometryEngine();
@@ -67,12 +76,14 @@ class AnnularVisualization {
             .attr('preserveAspectRatio', 'xMidYMid meet');
         
         // Create groups for different layers
+        this.borderGroup = this.svg.append('g').attr('class', 'border-layer');
         this.baseGroup = this.svg.append('g').attr('class', 'base-layer');
         this.ticksGroup = this.svg.append('g').attr('class', 'ticks-layer');
         this.dataGroup = this.svg.append('g').attr('class', 'data-layer');
         
-        // Draw initial base circle
+        // Draw initial base circle and borders
         this.drawBaseCircle();
+        this.drawBorders();
     }
 
     /**
@@ -119,6 +130,120 @@ class AnnularVisualization {
             .attr('d', path)
             .attr('class', 'circle-face')
             .attr('fill', 'none');
+    }
+
+    /**
+     * Draw borders and background fill as a single closed annulus
+     */
+    drawBorders() {
+        this.borderGroup.selectAll('*').remove();
+        
+        const outerRadius = this.outerBorderRadius;
+        const innerRadius = this.innerBorderRadius;
+        
+        if (this.currentCurvature >= 359.9) {
+            // Full circle - draw annulus using cubic Bezier curves for smooth circles
+            // Outer circle: radius 350, Inner circle: radius 185
+            // Center: (400, 400)
+            
+            // Calculate key points for outer circle (radius 350)
+            const outerTop = this.centerY - outerRadius;
+            const outerBottom = this.centerY + outerRadius;
+            const outerLeft = this.centerX - outerRadius;
+            const outerRight = this.centerX + outerRadius;
+            
+            // Calculate key points for inner circle (radius 185)
+            const innerTop = this.centerY - innerRadius;
+            const innerBottom = this.centerY + innerRadius;
+            const innerLeft = this.centerX - innerRadius;
+            const innerRight = this.centerX + innerRadius;
+            
+            // Bezier control point offset (approximation for circle: 0.552284749831)
+            const kappa = 0.5522847498;
+            const outerControl = outerRadius * kappa;
+            const innerControl = innerRadius * kappa;
+            
+            // Build annulus path using cubic Bezier curves
+            const annulusPath = [
+                // Start at bottom of outer circle
+                `M ${this.centerX} ${outerBottom}`,
+                // Outer circle clockwise (bottom -> left -> top -> right -> bottom)
+                `C ${this.centerX - outerControl} ${outerBottom} ${outerLeft} ${this.centerY + outerControl} ${outerLeft} ${this.centerY}`,
+                `C ${outerLeft} ${this.centerY - outerControl} ${this.centerX - outerControl} ${outerTop} ${this.centerX} ${outerTop}`,
+                `C ${this.centerX + outerControl} ${outerTop} ${outerRight} ${this.centerY - outerControl} ${outerRight} ${this.centerY}`,
+                `C ${outerRight} ${this.centerY + outerControl} ${this.centerX + outerControl} ${outerBottom} ${this.centerX} ${outerBottom}`,
+                // Line to inner circle bottom
+                `L ${this.centerX} ${innerBottom}`,
+                // Inner circle counter-clockwise (bottom -> right -> top -> left -> bottom)
+                `C ${this.centerX + innerControl} ${innerBottom} ${innerRight} ${this.centerY + innerControl} ${innerRight} ${this.centerY}`,
+                `C ${innerRight} ${this.centerY - innerControl} ${this.centerX + innerControl} ${innerTop} ${this.centerX} ${innerTop}`,
+                `C ${this.centerX - innerControl} ${innerTop} ${innerLeft} ${this.centerY - innerControl} ${innerLeft} ${this.centerY}`,
+                `C ${innerLeft} ${this.centerY + innerControl} ${this.centerX - innerControl} ${innerBottom} ${this.centerX} ${innerBottom}`,
+                `Z` // Close path
+            ].join(' ');
+            
+            this.borderGroup.append('path')
+                .attr('d', annulusPath)
+                .attr('fill', '#fef9f3')
+                .attr('stroke', '#3a3a3a')
+                .attr('stroke-width', 1);
+                
+        } else if (this.currentCurvature > 0.1) {
+            // Partial arc - draw annulus segment CENTERED around 6 o'clock (bottom)
+            // The chosen date from time navigator appears at 6 o'clock
+            // Time window extends equally before and after the chosen date
+            const arcRadians = (this.currentCurvature * Math.PI) / 180;
+            const centerAngle = Math.PI / 2; // 90° = 6 o'clock (bottom)
+            const startAngle = centerAngle - arcRadians / 2;
+            const endAngle = centerAngle + arcRadians / 2;
+            
+            // Calculate points
+            const innerStartX = this.centerX + innerRadius * Math.cos(startAngle);
+            const innerStartY = this.centerY + innerRadius * Math.sin(startAngle);
+            const outerStartX = this.centerX + outerRadius * Math.cos(startAngle);
+            const outerStartY = this.centerY + outerRadius * Math.sin(startAngle);
+            
+            const innerEndX = this.centerX + innerRadius * Math.cos(endAngle);
+            const innerEndY = this.centerY + innerRadius * Math.sin(endAngle);
+            const outerEndX = this.centerX + outerRadius * Math.cos(endAngle);
+            const outerEndY = this.centerY + outerRadius * Math.sin(endAngle);
+            
+            // DEBUG: Log actual positions
+            console.log(`Start: (${outerStartX.toFixed(0)}, ${outerStartY.toFixed(0)}), End: (${outerEndX.toFixed(0)}, ${outerEndY.toFixed(0)}), Center: (${this.centerX}, ${this.centerY})`);
+            
+            // Determine if we need large arc flag
+            const largeArcFlag = arcRadians > Math.PI ? 1 : 0;
+            
+            // Build annulus segment path
+            const segmentPath = [
+                `M ${innerStartX},${innerStartY}`, // Start at inner radius
+                `L ${outerStartX},${outerStartY}`, // Line to outer radius
+                `A ${outerRadius},${outerRadius} 0 ${largeArcFlag},1 ${outerEndX},${outerEndY}`, // Arc along outer
+                `L ${innerEndX},${innerEndY}`, // Line to inner radius
+                `A ${innerRadius},${innerRadius} 0 ${largeArcFlag},0 ${innerStartX},${innerStartY}`, // Arc along inner (reverse)
+                `Z` // Close path
+            ].join(' ');
+            
+            this.borderGroup.append('path')
+                .attr('d', segmentPath)
+                .attr('fill', '#fef9f3')
+                .attr('stroke', '#3a3a3a')
+                .attr('stroke-width', 1);
+                
+        } else {
+            // Straight line - draw rectangle
+            const lineLength = this.baseRadius * 2 * Math.PI;
+            const rectHeight = outerRadius - innerRadius;
+            
+            this.borderGroup.append('rect')
+                .attr('x', this.centerX - lineLength / 2)
+                .attr('y', this.centerY - rectHeight / 2)
+                .attr('width', lineLength)
+                .attr('height', rectHeight)
+                .attr('fill', '#fef9f3')
+                .attr('stroke', '#3a3a3a')
+                .attr('stroke-width', 1);
+        }
     }
 
     /**
@@ -385,6 +510,9 @@ class AnnularVisualization {
         // Update base circle
         this.drawBaseCircle();
         
+        // Update borders
+        this.drawBorders();
+        
         // Update ticks
         this.drawTicks();
         
@@ -432,9 +560,15 @@ class AnnularVisualization {
     drawDataPath(data, maxValue, color) {
         const sortedData = data.sort((a, b) => a.timestamp - b.timestamp);
         
-        // Calculate positions for each data point
-        const points = sortedData.map((d, i) => {
-            const t = i / (sortedData.length - 1 || 1);
+        // Get time range for proper positioning
+        const timeRange = this.timeNavigator.getDateRange(this.currentTimeWindow);
+        const startTime = timeRange.start.getTime();
+        const endTime = timeRange.end.getTime();
+        
+        // Calculate positions for each data point based on actual timestamp
+        const points = sortedData.map(d => {
+            // Calculate t based on actual timestamp position in range
+            const t = (d.timestamp.getTime() - startTime) / (endTime - startTime);
             return this.geometryEngine.calculatePosition(
                 t,
                 d.kwh,
@@ -446,31 +580,19 @@ class AnnularVisualization {
             );
         });
         
-        // Create path
+        // Create path - stroke only, no fill
+        // Use curveCardinal for smoother curves that follow data points
         const line = d3.line()
             .x(d => d.x)
             .y(d => d.y)
-            .curve(d3.curveMonotoneX);
-        
-        // Draw area
-        const area = d3.area()
-            .x(d => d.x)
-            .y0(this.centerY)
-            .y1(d => d.y)
-            .curve(d3.curveMonotoneX);
-        
-        this.dataGroup.append('path')
-            .datum(points)
-            .attr('d', area)
-            .attr('class', 'data-area')
-            .style('fill', color)
-            .style('fill-opacity', 0.3);
+            .curve(d3.curveCardinal.tension(0.5));
         
         this.dataGroup.append('path')
             .datum(points)
             .attr('d', line)
             .attr('class', 'data-path')
             .style('stroke', color)
+            .style('stroke-width', 2)
             .style('fill', 'none');
     }
 

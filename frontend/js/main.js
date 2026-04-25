@@ -53,10 +53,13 @@ async function initializeDashboard() {
         resetToDefaults();
         
         // Load initial data
+        console.log('About to load data...');
         await loadData();
+        console.log('Data loaded successfully');
     } catch (error) {
         console.error('Failed to initialize dashboard:', error);
-        showError('Failed to initialize dashboard. Please refresh the page.');
+        console.error('Error details:', error.message, error.stack);
+        showError('Failed to initialize dashboard: ' + error.message);
     }
 }
 
@@ -149,13 +152,13 @@ async function loadData() {
         
         switch (currentView) {
             case 'daily':
-                result = await getDailyData(startDate, endDate);
+                result = await API.getDailyData(startDate, endDate);
                 break;
             case 'monthly':
-                result = await getMonthlyData(startDate, endDate);
+                result = await API.getMonthlyData(startDate, endDate);
                 break;
             case 'yearly':
-                result = await getYearlyData(startDate, endDate);
+                result = await API.getYearlyData(startDate, endDate);
                 break;
         }
         
@@ -227,19 +230,31 @@ function updateStats(summary) {
  * Render appropriate chart based on view type
  */
 function renderChart(data) {
+    console.log('renderChart called with view:', currentView, 'data length:', data?.length);
+    
     // Remove any existing tooltips
     d3.selectAll('.tooltip').remove();
     
-    switch (currentView) {
-        case 'daily':
-            createDailyChart(data);
-            break;
-        case 'monthly':
-            createMonthlyChart(data);
-            break;
-        case 'yearly':
-            createYearlyChart(data);
-            break;
+    try {
+        switch (currentView) {
+            case 'daily':
+                console.log('Calling createDailyChart...');
+                createDailyChart(data);
+                break;
+            case 'monthly':
+                console.log('Calling createMonthlyChart...');
+                createMonthlyChart(data);
+                break;
+            case 'yearly':
+                console.log('Calling createYearlyChart...');
+                createYearlyChart(data);
+                break;
+        }
+        console.log('Chart rendering complete');
+    } catch (error) {
+        console.error('Error rendering chart:', error);
+        console.error('Error details:', error.message, error.stack);
+        showError('Failed to render chart: ' + error.message);
     }
 }
 

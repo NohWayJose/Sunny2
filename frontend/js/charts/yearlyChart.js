@@ -19,9 +19,9 @@ function createYearlyChart(data, containerId = 'chart') {
 
     // Set dimensions
     const container = document.getElementById(containerId);
-    const containerWidth = container.clientWidth;
+    const containerWidth = container.clientWidth || container.offsetWidth || 1200;
     const margin = { top: 20, right: 30, bottom: 60, left: 70 };
-    const width = containerWidth - margin.left - margin.right;
+    const width = Math.max(containerWidth - margin.left - margin.right, 800);
     const height = 450 - margin.top - margin.bottom;
 
     // Prepare data
@@ -127,11 +127,11 @@ function createYearlyChart(data, containerId = 'chart') {
 
             tooltip.html(`
                 <strong>Year:</strong> ${d.year}<br/>
-                <strong>Total Generation:</strong> ${d.totalKwh.toFixed(2)} kWh<br/>
-                <strong>Avg Monthly:</strong> ${d.avgMonthlyKwh.toFixed(2)} kWh<br/>
+                <strong>Total Generation:</strong> ${parseFloat(d.totalKwh).toFixed(2)} kWh<br/>
+                <strong>Avg Monthly:</strong> ${parseFloat(d.avgMonthlyKwh).toFixed(2)} kWh<br/>
                 <strong>Months:</strong> ${d.monthsInYear}<br/>
                 <strong>Peak Month:</strong> ${d.peakMonth || 'N/A'}<br/>
-                <strong>Peak Month kWh:</strong> ${d.peakMonthKwh ? d.peakMonthKwh.toFixed(2) : 'N/A'}${growthText}
+                <strong>Peak Month kWh:</strong> ${d.peakMonthKwh ? parseFloat(d.peakMonthKwh).toFixed(2) : 'N/A'}${growthText}
             `)
                 .style('left', (event.pageX + 10) + 'px')
                 .style('top', (event.pageY - 28) + 'px');

@@ -19,9 +19,9 @@ function createDailyChart(data, containerId = 'chart') {
 
     // Set dimensions
     const container = document.getElementById(containerId);
-    const containerWidth = container.clientWidth;
+    const containerWidth = container.clientWidth || container.offsetWidth || 1200;
     const margin = { top: 20, right: 30, bottom: 50, left: 70 };
-    const width = containerWidth - margin.left - margin.right;
+    const width = Math.max(containerWidth - margin.left - margin.right, 800);
     const height = 450 - margin.top - margin.bottom;
 
     // Parse dates

@@ -392,3 +392,256 @@ body {
 }
 
 /* Made with Bob */
+
+
+/* ROI Dashboard Section */
+.roi-section {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 30px;
+    margin: 20px 0;
+    box-shadow: var(--shadow-lg);
+}
+
+.section-title {
+    font-size: 1.8rem;
+    color: var(--text-primary);
+    margin-bottom: 25px;
+    text-align: center;
+    border-bottom: 3px solid var(--primary-color);
+    padding-bottom: 15px;
+}
+
+/* ROI Stats Cards */
+.roi-stats-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.roi-card {
+    background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+    border-radius: 10px;
+    padding: 25px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    border: 2px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.roi-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-color);
+}
+
+.roi-card.highlight {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-color: var(--primary-color);
+}
+
+.roi-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+
+.roi-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin: 10px 0;
+}
+
+.roi-card.highlight .roi-value {
+    color: #d97706;
+    font-size: 2.5rem;
+}
+
+.roi-sublabel {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 5px;
+}
+
+/* ROI Charts */
+.roi-charts-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+.roi-chart-wrapper {
+    background: var(--light-bg);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+}
+
+.roi-chart-wrapper h3 {
+    font-size: 1.2rem;
+    color: var(--text-primary);
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.roi-chart {
+    min-height: 400px;
+    background: white;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+/* FIT Details */
+.fit-details {
+    background: var(--light-bg);
+    border-radius: 10px;
+    padding: 25px;
+    margin-top: 20px;
+}
+
+.fit-details h3 {
+    font-size: 1.3rem;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 10px;
+}
+
+.fit-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.fit-info-item {
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.fit-info-item strong {
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 5px;
+}
+
+.fit-note {
+    background: #fef3c7;
+    border-left: 4px solid var(--primary-color);
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.fit-note strong {
+    color: var(--primary-color);
+}
+
+/* Responsive Design for ROI Section */
+@media (max-width: 768px) {
+    .roi-stats-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .roi-charts-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .fit-info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .roi-value {
+        font-size: 1.5rem;
+    }
+    
+    .roi-card.highlight .roi-value {
+        font-size: 2rem;
+    }
+}
+
+
+/* Tabs Container */
+.tabs-container {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    margin: 20px 0;
+    overflow: hidden;
+}
+
+.tab-nav {
+    display: flex;
+    background: var(--light-bg);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tab-button {
+    flex: 1;
+    padding: 18px 30px;
+    background: transparent;
+    border: none;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+}
+
+.tab-button:hover {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--primary-color);
+}
+
+.tab-button.active {
+    color: var(--primary-color);
+    background: white;
+    border-bottom-color: var(--primary-color);
+}
+
+.tab-content {
+    padding: 0;
+}
+
+.tab-pane {
+    display: none;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Adjust chart container for tabs */
+.tab-pane .chart-container {
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.tab-pane .roi-section {
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+}

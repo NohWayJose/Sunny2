@@ -26,45 +26,48 @@ class GeometryEngine {
      * @param {number} t - Normalized time position (0 to 1)
      * @param {number} value - Data value (kWh)
      * @param {number} angle - Current curvature angle (0-360)
-     * @param {number} baseRadius - Base radius of the circle
+     * @param {number} baseRadius - Base radius of the circle (scale position)
      * @param {number} maxValue - Maximum value for scaling
      * @param {number} centerX - Center X coordinate
      * @param {number} centerY - Center Y coordinate
      * @returns {Object} {x, y} coordinates
      */
     calculatePosition(t, value, angle, baseRadius, maxValue, centerX, centerY) {
-        // Normalize value to radial distance
-        const radialScale = 100; // Maximum radial extension in pixels
-        const normalizedValue = (value / maxValue) * radialScale;
-        const radius = baseRadius + normalizedValue;
+        // Normalize value to radial distance (data extends INWARD from scale)
+        // Max extension is 100px, but constrained to not go past inner border (185px radius)
+        // Available space: baseRadius (305) - innerBorder (185) = 120px
+        // Use 100px max to leave 20px clearance
+        const maxRadialExtension = 100;
+        const normalizedValue = Math.min((value / maxValue) * maxRadialExtension, maxRadialExtension);
+        const radius = baseRadius - normalizedValue; // SUBTRACT to go inward
 
         if (angle >= 359.9) {
-            // Full circle mode
-            const theta = t * 2 * Math.PI;
+            // Full circle mode - start at bottom (6 o'clock), Jan/Dec at bottom
+            const theta = t * 2 * Math.PI + Math.PI / 2;
             return {
-                x: centerX + radius * Math.cos(theta - Math.PI / 2),
-                y: centerY + radius * Math.sin(theta - Math.PI / 2)
+                x: centerX + radius * Math.cos(theta),
+                y: centerY + radius * Math.sin(theta)
             };
         } else if (angle <= 0.1) {
-            // Straight line mode
+            // Straight line mode - horizontal left to right
             const lineLength = baseRadius * 2 * Math.PI;
             return {
                 x: centerX - lineLength / 2 + t * lineLength,
-                y: centerY - normalizedValue
+                y: centerY + normalizedValue // POSITIVE to go down (inward)
             };
         } else {
-            // Interpolated mode (partial circle)
+            // Interpolated mode (partial arc) - unfolds horizontally from bottom
             const angleRad = (angle / 360) * 2 * Math.PI;
-            const theta = t * angleRad;
+            const theta = t * angleRad + Math.PI / 2 - angleRad / 2;
             
             // Calculate arc position
-            const arcX = centerX + radius * Math.cos(theta - angleRad / 2);
-            const arcY = centerY + radius * Math.sin(theta - angleRad / 2);
+            const arcX = centerX + radius * Math.cos(theta);
+            const arcY = centerY + radius * Math.sin(theta);
             
-            // Calculate line position
+            // Calculate line position (horizontal)
             const lineLength = baseRadius * angleRad;
             const lineX = centerX - lineLength / 2 + t * lineLength;
-            const lineY = centerY - normalizedValue;
+            const lineY = centerY + normalizedValue; // POSITIVE to go down (inward)
             
             // Blend between arc and line based on angle
             const blend = angle / 360;
@@ -90,8 +93,8 @@ class GeometryEngine {
         
         for (const t of tickPositions) {
             if (angle >= 359.9) {
-                // Full circle mode
-                const theta = t * 2 * Math.PI - Math.PI / 2;
+                // Full circle mode - start at bottom (6 o'clock)
+                const theta = t * 2 * Math.PI + Math.PI / 2;
                 const innerRadius = baseRadius - tickLength / 2;
                 const outerRadius = baseRadius + tickLength / 2;
                 
@@ -105,7 +108,7 @@ class GeometryEngine {
                     angle: theta
                 });
             } else if (angle <= 0.1) {
-                // Straight line mode
+                // Straight line mode - horizontal
                 const lineLength = baseRadius * 2 * Math.PI;
                 const x = centerX - lineLength / 2 + t * lineLength;
                 
@@ -119,9 +122,9 @@ class GeometryEngine {
                     angle: 0
                 });
             } else {
-                // Interpolated mode
+                // Interpolated mode - unfolds from bottom
                 const angleRad = (angle / 360) * 2 * Math.PI;
-                const theta = t * angleRad - angleRad / 2;
+                const theta = t * angleRad + Math.PI / 2 - angleRad / 2;
                 const innerRadius = baseRadius - tickLength / 2;
                 const outerRadius = baseRadius + tickLength / 2;
                 
@@ -133,7 +136,7 @@ class GeometryEngine {
                 const arcLabelX = centerX + (baseRadius + tickLength + 15) * Math.cos(theta);
                 const arcLabelY = centerY + (baseRadius + tickLength + 15) * Math.sin(theta);
                 
-                // Line position
+                // Line position (horizontal)
                 const lineLength = baseRadius * angleRad;
                 const lineX = centerX - lineLength / 2 + t * lineLength;
                 const lineY1 = centerY - tickLength / 2;
@@ -158,6 +161,35 @@ class GeometryEngine {
         return ticks;
     }
 
+    calculateBasePath(angle, baseRadius, centerX, centerY) {
+        if (angle >= 359.9) {
+            // Full circle - start at bottom (6 o'clock position)
+            return `M ${centerX},${centerY + baseRadius}
+                    A ${baseRadius},${baseRadius} 0 1,1 ${centerX},${centerY - baseRadius}
+                    A ${baseRadius},${baseRadius} 0 1,1 ${centerX},${centerY + baseRadius}`;
+        } else if (angle <= 0.1) {
+            // Straight line - horizontal
+            const lineLength = baseRadius * 2 * Math.PI;
+            return `M ${centerX - lineLength / 2},${centerY}
+                    L ${centerX + lineLength / 2},${centerY}`;
+        } else {
+            // Partial arc - unfolds from bottom
+            const angleRad = (angle / 360) * 2 * Math.PI;
+            const startAngle = Math.PI / 2 - angleRad / 2;
+            const endAngle = Math.PI / 2 + angleRad / 2;
+            
+            const startX = centerX + baseRadius * Math.cos(startAngle);
+            const startY = centerY + baseRadius * Math.sin(startAngle);
+            const endX = centerX + baseRadius * Math.cos(endAngle);
+            const endY = centerY + baseRadius * Math.sin(endAngle);
+            
+            const largeArcFlag = angleRad > Math.PI ? 1 : 0;
+            
+            return `M ${startX},${startY}
+                    A ${baseRadius},${baseRadius} 0 ${largeArcFlag},1 ${endX},${endY}`;
+        }
+    }
+
     /**
      * Calculate the base circle path for the visualization background
      * @param {number} angle - Current curvature angle (0-360)
@@ -168,20 +200,20 @@ class GeometryEngine {
      */
     calculateBasePath(angle, baseRadius, centerX, centerY) {
         if (angle >= 359.9) {
-            // Full circle
+            // Full circle - start at left (9 o'clock position)
             return `M ${centerX - baseRadius},${centerY}
                     A ${baseRadius},${baseRadius} 0 1,1 ${centerX + baseRadius},${centerY}
                     A ${baseRadius},${baseRadius} 0 1,1 ${centerX - baseRadius},${centerY}`;
         } else if (angle <= 0.1) {
-            // Straight line
+            // Straight line - horizontal
             const lineLength = baseRadius * 2 * Math.PI;
             return `M ${centerX - lineLength / 2},${centerY}
                     L ${centerX + lineLength / 2},${centerY}`;
         } else {
-            // Partial arc
+            // Partial arc - unfolds horizontally from left
             const angleRad = (angle / 360) * 2 * Math.PI;
-            const startAngle = -angleRad / 2;
-            const endAngle = angleRad / 2;
+            const startAngle = Math.PI - angleRad / 2;
+            const endAngle = Math.PI + angleRad / 2;
             
             const startX = centerX + baseRadius * Math.cos(startAngle);
             const startY = centerY + baseRadius * Math.sin(startAngle);

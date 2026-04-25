@@ -67,7 +67,7 @@ main {
 
 /* SVG Styling */
 .circle-face {
-    fill: var(--warm-white);
+    fill: none;
     stroke: var(--anthracite);
     stroke-width: 1px;
 }
@@ -228,39 +228,35 @@ input[type="range"]::-moz-range-thumb {
 
 .navigator-sliders {
     display: flex;
-    justify-content: space-between;
-    gap: 10px;
+    flex-direction: column;
+    gap: 15px;
     margin-top: 15px;
 }
 
 .slider-column {
-    flex: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
+    gap: 10px;
 }
 
 .slider-column label {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    margin-bottom: 8px;
     color: #666;
+    min-width: 60px;
+    text-align: right;
 }
 
 .slider-column input[type="range"] {
-    writing-mode: bt-lr; /* IE */
-    -webkit-appearance: slider-vertical; /* WebKit */
-    width: 6px;
-    height: 150px;
-    padding: 0;
-    margin: 10px 0;
+    flex: 1;
+    height: 6px;
 }
 
 .slider-column span {
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-dark);
-    margin-top: 8px;
+    min-width: 80px;
 }
 
 /* Info Display */

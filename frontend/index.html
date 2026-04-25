@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solar Dashboard - Power Generation Analytics</title>
     <link rel="stylesheet" href="css/styles.css">
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="js/d3.v7.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -68,16 +68,106 @@
             </div>
         </div>
 
-        <!-- Chart Container -->
-        <div class="chart-container">
-            <div id="loadingIndicator" class="loading-indicator">
-                <div class="spinner"></div>
-                <p>Loading data...</p>
+        <!-- Tabbed Content Area -->
+        <div class="tabs-container">
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button class="tab-button active" data-tab="generation">
+                    ⚡ Generation Data
+                </button>
+                <button class="tab-button" data-tab="roi">
+                    💰 FIT Earnings & ROI
+                </button>
             </div>
-            <div id="errorMessage" class="error-message" style="display: none;">
-                <p>⚠️ <span id="errorText"></span></p>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Generation Tab -->
+                <div id="generation-tab" class="tab-pane active">
+                    <!-- Chart Container -->
+                    <div class="chart-container">
+                        <div id="loadingIndicator" class="loading-indicator">
+                            <div class="spinner"></div>
+                            <p>Loading data...</p>
+                        </div>
+                        <div id="errorMessage" class="error-message" style="display: none;">
+                            <p>⚠️ <span id="errorText"></span></p>
+                        </div>
+                        <div id="chart"></div>
+                    </div>
+                </div>
+
+                <!-- ROI Tab -->
+                <div id="roi-tab" class="tab-pane">
+                    <div class="roi-section">
+            
+            <!-- ROI Summary Cards -->
+            <div class="roi-stats-container" id="roiStatsContainer">
+                <div class="roi-card highlight">
+                    <div class="roi-label">Total Earnings to Date</div>
+                    <div class="roi-value" id="totalEarnings">Loading...</div>
+                    <div class="roi-sublabel">Since Feb 2012</div>
+                </div>
+                <div class="roi-card">
+                    <div class="roi-label">Average Yearly Earnings</div>
+                    <div class="roi-value" id="avgYearlyEarnings">-</div>
+                    <div class="roi-sublabel">Over 14 years</div>
+                </div>
+                <div class="roi-card">
+                    <div class="roi-label">Projected Total by 2037</div>
+                    <div class="roi-value" id="projectedEarnings">-</div>
+                    <div class="roi-sublabel">25-year FIT guarantee</div>
+                </div>
+                <div class="roi-card">
+                    <div class="roi-label">Current Generation Tariff</div>
+                    <div class="roi-value" id="currentTariff">-</div>
+                    <div class="roi-sublabel">RPI-adjusted rate</div>
+                </div>
             </div>
-            <div id="chart"></div>
+
+            <!-- Earnings Charts -->
+            <div class="roi-charts-container">
+                <div class="roi-chart-wrapper">
+                    <h3>Yearly Earnings Breakdown</h3>
+                    <div id="earningsChart" class="roi-chart"></div>
+                </div>
+                <div class="roi-chart-wrapper">
+                    <h3>Cumulative Earnings Over Time</h3>
+                    <div id="cumulativeChart" class="roi-chart"></div>
+                </div>
+            </div>
+
+            <!-- FIT Details -->
+            <div class="fit-details">
+                <h3>Feed-in Tariff Details</h3>
+                <div class="fit-info-grid">
+                    <div class="fit-info-item">
+                        <strong>Installation Date:</strong> February 29, 2012
+                    </div>
+                    <div class="fit-info-item">
+                        <strong>System Size:</strong> 2.5 kW (9 panels)
+                    </div>
+                    <div class="fit-info-item">
+                        <strong>Base Generation Tariff:</strong> 43.3p/kWh
+                    </div>
+                    <div class="fit-info-item">
+                        <strong>Base Export Tariff:</strong> 3.1p/kWh
+                    </div>
+                    <div class="fit-info-item">
+                        <strong>Export Assumption:</strong> 50% deemed export
+                    </div>
+                    <div class="fit-info-item">
+                        <strong>FIT Guarantee Ends:</strong> February 28, 2037
+                    </div>
+                </div>
+                <p class="fit-note">
+                    <strong>Note:</strong> Tariff rates are adjusted annually based on the UK Retail Price Index (RPI).
+                    Your installation qualified for the highest FIT rate available in 2012, locked in for 25 years.
+                </p>
+            </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Info Panel -->
@@ -111,6 +201,8 @@
     <script src="js/charts/dailyChart.js"></script>
     <script src="js/charts/monthlyChart.js"></script>
     <script src="js/charts/yearlyChart.js"></script>
+    <script src="js/charts/roiCharts.js"></script>
+    <script src="js/tabManager.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

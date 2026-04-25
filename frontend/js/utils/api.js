@@ -4,9 +4,9 @@
  */
 
 // API base URL - adjust based on environment
-const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000/api'
-    : '/solar/api';
+const API_BASE_URL = window.location.hostname === 'localhost'
+    ? 'http://localhost:3001/api'
+    : '/api';
 
 /**
  * Generic fetch wrapper with error handling
@@ -176,5 +176,65 @@ function getLastNYears(years) {
         end: end.getFullYear().toString()
     };
 }
+
+/**
+ * Get FIT earnings for a date range
+ * @param {number} startYear - Start year (YYYY)
+ * @param {number} endYear - End year (YYYY)
+ * @returns {Promise<Object>}
+ */
+async function getEarnings(startYear, endYear) {
+    const params = new URLSearchParams({ start: startYear, end: endYear });
+    return fetchAPI(`/fit/earnings?${params}`);
+}
+
+/**
+ * Get ROI (Return on Investment) summary
+ * @param {number} installationCost - Optional installation cost in GBP
+ * @returns {Promise<Object>}
+ */
+async function getROI(installationCost = null) {
+    const params = installationCost
+        ? new URLSearchParams({ installationCost })
+        : '';
+    return fetchAPI(`/fit/roi${params ? '?' + params : ''}`);
+}
+
+/**
+ * Get monthly FIT earnings for a specific year
+ * @param {number} year - Year (YYYY)
+ * @returns {Promise<Object>}
+ */
+async function getMonthlyEarnings(year) {
+    return fetchAPI(`/fit/monthly/${year}`);
+}
+
+/**
+ * Get current FIT tariff information
+ * @returns {Promise<Object>}
+ */
+async function getTariffs() {
+    return fetchAPI('/fit/tariffs');
+}
+
+// Export API object
+const API = {
+    getDailyData,
+    getMonthlyData,
+    getYearlyData,
+    getRawData,
+    getDataRange,
+    healthCheck,
+    getEarnings,
+    getROI,
+    getMonthlyEarnings,
+    getTariffs,
+    formatDate,
+    formatMonth,
+    parseDate,
+    getLastNDays,
+    getLastNMonths,
+    getLastNYears
+};
 
 // Made with Bob
