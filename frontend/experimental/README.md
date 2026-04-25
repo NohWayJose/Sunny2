@@ -55,20 +55,58 @@ An innovative D3.js visualization that displays solar generation data in a circu
 
 ### Standalone Testing
 
-1. Ensure the backend server is running:
+The backend serves only API endpoints, so you need to serve the frontend files separately.
+
+**Option 1: Using the provided script (recommended)**
+
+1. Start the backend API server:
    ```bash
    cd backend
    npm start
    ```
 
-2. Open the visualization in a browser:
+2. In a new terminal, start the frontend server:
+   ```bash
+   ./serve-frontend.sh
    ```
-   http://localhost:3001/experimental/annular-viz.html
+
+3. Open in browser:
    ```
-   Or if using a file server:
+   http://localhost:8080/experimental/annular-viz.html
    ```
-   file:///path/to/frontend/experimental/annular-viz.html
+
+**Option 2: Using Python's built-in server**
+
+1. Start the backend (port 3001):
+   ```bash
+   cd backend && npm start
    ```
+
+2. In a new terminal, serve frontend (port 8080):
+   ```bash
+   cd frontend && python3 -m http.server 8080
+   ```
+
+3. Open: `http://localhost:8080/experimental/annular-viz.html`
+
+**Option 3: Using Node.js http-server**
+
+1. Install http-server globally (if not already installed):
+   ```bash
+   npm install -g http-server
+   ```
+
+2. Start backend (port 3001):
+   ```bash
+   cd backend && npm start
+   ```
+
+3. Serve frontend (port 8080):
+   ```bash
+   cd frontend && http-server -p 8080
+   ```
+
+4. Open: `http://localhost:8080/experimental/annular-viz.html`
 
 ### Controls
 
