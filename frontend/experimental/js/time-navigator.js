@@ -232,11 +232,25 @@ class TimeNavigator {
     }
 
     /**
-     * Get date range for a given time window centered on current timestamp
+     * Get date range for a given time window
+     * For year-long windows, aligns to calendar year (Jan 1 - Dec 31)
+     * For shorter windows, centers on current timestamp
      * @param {number} windowSizeMs - Time window in milliseconds
      * @returns {Object} {start, end} Date objects
      */
     getDateRange(windowSizeMs) {
+        const oneYear = 365 * 24 * 60 * 60 * 1000;
+        
+        // For year-long windows (>= 11 months), align to calendar year
+        if (windowSizeMs >= oneYear * 0.9) {
+            const year = this.currentTimestamp.getFullYear();
+            return {
+                start: new Date(year, 0, 1, 0, 0, 0, 0),  // Jan 1st
+                end: new Date(year, 11, 31, 23, 59, 59, 999)  // Dec 31st
+            };
+        }
+        
+        // For shorter windows, center on current timestamp
         const center = this.currentTimestamp.getTime();
         const halfWindow = windowSizeMs / 2;
         

@@ -269,13 +269,35 @@ class AnnularVisualization {
         const days = this.currentTimeWindow / (24 * 60 * 60 * 1000);
         const numMonths = Math.min(12, Math.round(days / 30));
         
+        // Get the actual date range to calculate real day positions
+        const timeRange = this.timeNavigator.getDateRange(this.currentTimeWindow);
+        const startTime = timeRange.start.getTime();
+        const endTime = timeRange.end.getTime();
+        const totalMs = endTime - startTime;
+        
+        // Get the year for month calculations
+        const year = timeRange.start.getFullYear();
+        
         for (let i = 0; i < numMonths; i++) {
-            majorTicks.push(i / numMonths);
+            // Calculate the actual timestamp for the 1st of this month
+            const monthStart = new Date(year, i, 1, 0, 0, 0, 0);
+            const monthStartMs = monthStart.getTime();
+            
+            // Calculate position as fraction of total time range
+            const t = (monthStartMs - startTime) / totalMs;
+            majorTicks.push(t);
             labels.push(monthNames[i]);
             
-            // Add weekly minor ticks (4 per month)
+            // Add weekly minor ticks based on actual days
+            const daysInMonth = new Date(year, i + 1, 0).getDate();
             for (let j = 1; j < 4; j++) {
-                minorTicks.push((i + j / 4) / numMonths);
+                const weekDay = Math.floor(daysInMonth * j / 4);
+                const weekDate = new Date(year, i, weekDay, 0, 0, 0, 0);
+                const weekMs = weekDate.getTime();
+                const weekT = (weekMs - startTime) / totalMs;
+                if (weekT >= 0 && weekT <= 1) {
+                    minorTicks.push(weekT);
+                }
             }
         }
         
