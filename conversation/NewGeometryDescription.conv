@@ -1,0 +1,7 @@
+right, getting back to the graph. 
+Ditch ellipses
+1yr->6months keep circular geometry
+As you can see from the images, it splits from the South, symetrically up to 6 months 
+From that point to 1 month, the upper and lower borders flatten. The top (North apex) of the upper arc ALWAYS goes through the same point and extends to the same width as the diameter of the original circle. 
+The lower arc also flattens but its constraints are that its endpoints are always on the imaginary line that is the horizontal centreline of the original lower circle. The lower arc's apex maintains a constant distance from the apex of the upper arc
+When it gets to 1 month, and the lines are nearly flat (both radii are very large), on the next step, we jump to assume the radii are infinity, in other words the graph viewport becomes a rectangle. Throughout this transition, the straight line segments just link the upper and lower arcs on both left and right

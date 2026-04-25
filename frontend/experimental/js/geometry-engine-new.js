@@ -68,27 +68,14 @@ class GeometryEngine {
 
     /**
      * Mode 1: Circular Split (1yr → 6mo, 360° → 180°)
-     * SVG coordinates: Y increases downward, so South is at bottom (90° in SVG = 270° in math)
-     * Gap should be at South (bottom) and get smaller as we approach 1 year
      */
     calculateMode1Geometry(splitAngle, centerX, centerY) {
-        // At 1 year (360°): gap = MIN_GAP_ANGLE (small visible gap)
-        // At 6 months (180°): gap = 180° (semicircle with 180° gap at South)
-        const MIN_GAP_ANGLE = 5;  // Minimum gap in degrees (always visible)
-        const gapAngle = Math.max(MIN_GAP_ANGLE, 360 - splitAngle);
+        const gapAngle = 360 - splitAngle;  // How much is split open at South
         
-        // In SVG coordinates:
-        // 0° = East (right), 90° = South (bottom), 180° = West (left), 270° = North (top)
-        // We want the gap centered at South (90° in SVG)
-        const southAngleSVG = 90;  // degrees
-        
-        // Arc goes from (South - gapAngle/2) clockwise to (South + gapAngle/2)
-        // But we want the ARC, not the gap, so we go the OTHER way:
-        // Start at South + gapAngle/2, go clockwise around to South - gapAngle/2
-        const startAngleDeg = southAngleSVG + gapAngle / 2;
-        const endAngleDeg = southAngleSVG - gapAngle / 2 + 360;  // Add 360 to go the long way
-        
-        console.log(`Split angle: ${splitAngle}°, Gap: ${gapAngle}°, Arc from ${startAngleDeg}° to ${endAngleDeg}°`);
+        // Arc spans from South, opening symmetrically
+        // South = 270° (measured from East = 0°)
+        const startAngleDeg = 270 - gapAngle / 2;
+        const endAngleDeg = 270 + gapAngle / 2;
         
         return {
             mode: 1,
@@ -112,10 +99,8 @@ class GeometryEngine {
 
     /**
      * Mode 2: Dual Arc Flattening (6mo → 1mo, 180° → 30°)
-     * In SVG: North (top) has lower Y values, South (bottom) has higher Y values
      */
     calculateMode2Geometry(splitAngle, centerX, centerY) {
-        // North apex is at top (lower Y in SVG)
         const northApexY = centerY - this.ORIGINAL_RADIUS;
         
         // Calculate endpoint drop based on how far we are from 180° to 30°
@@ -123,36 +108,35 @@ class GeometryEngine {
         const maxDrop = this.ANNULUS_WIDTH * 2;
         const endpointDrop = maxDrop * t * t;  // Quadratic easing
         
-        // Upper arc constraints (at top, lower Y values)
-        const upperEndpointY = northApexY + endpointDrop;  // Moving down (increasing Y)
+        // Upper arc constraints
+        const upperEndpointY = northApexY + endpointDrop;
         const upperLeftX = centerX - this.ORIGINAL_DIAMETER / 2;
         const upperRightX = centerX + this.ORIGINAL_DIAMETER / 2;
         
         // Calculate upper arc center and radius
         // Arc passes through: (upperLeftX, upperEndpointY), (centerX, northApexY), (upperRightX, upperEndpointY)
         const halfWidth = this.ORIGINAL_DIAMETER / 2;
-        const upperCenterY = (northApexY * northApexY - upperEndpointY * upperEndpointY - halfWidth * halfWidth) /
+        const upperCenterY = (northApexY * northApexY - upperEndpointY * upperEndpointY - halfWidth * halfWidth) / 
                             (2 * (northApexY - upperEndpointY));
         const upperRadius = Math.abs(northApexY - upperCenterY);
         
-        // Lower arc constraints (at bottom, higher Y values)
-        const lowerApexY = northApexY + this.ANNULUS_WIDTH;  // Below upper arc
+        // Lower arc constraints
+        const lowerApexY = northApexY + this.ANNULUS_WIDTH;
         const lowerEndpointY = centerY;  // Always on horizontal centerline
         
         // Calculate lower arc center and radius
-        const lowerCenterY = (lowerApexY * lowerApexY - lowerEndpointY * lowerEndpointY - halfWidth * halfWidth) /
+        const lowerCenterY = (lowerApexY * lowerApexY - lowerEndpointY * lowerEndpointY - halfWidth * halfWidth) / 
                             (2 * (lowerApexY - lowerEndpointY));
         const lowerRadius = Math.abs(lowerApexY - lowerCenterY);
         
         // Calculate arc angles for both arcs
-        // For SVG, angles are measured clockwise from East (0°)
-        // Upper arc: from left endpoint to right endpoint, curving upward (through North)
+        // Upper arc: from left endpoint to right endpoint, passing through top
         const upperStartAngle = Math.PI - Math.acos((upperLeftX - centerX) / upperRadius);
         const upperEndAngle = Math.acos((upperRightX - centerX) / upperRadius);
         
-        // Lower arc: from left endpoint to right endpoint, curving downward (through South)
-        const lowerStartAngle = Math.PI + Math.acos((upperLeftX - centerX) / lowerRadius);
-        const lowerEndAngle = 2 * Math.PI - Math.acos((upperRightX - centerX) / lowerRadius);
+        // Lower arc: from left endpoint to right endpoint, passing through bottom
+        const lowerStartAngle = Math.PI - Math.acos((upperLeftX - centerX) / lowerRadius);
+        const lowerEndAngle = Math.acos((upperRightX - centerX) / lowerRadius);
         
         return {
             mode: 2,
@@ -315,14 +299,6 @@ class GeometryEngine {
     generateMode1BorderPath(geometry) {
         const { outerArc, innerArc } = geometry;
         
-        console.log('Mode 1 Border Path:', {
-            outerRadius: outerArc.radius,
-            innerRadius: innerArc.radius,
-            startAngle: outerArc.startAngle * 180 / Math.PI,
-            endAngle: outerArc.endAngle * 180 / Math.PI,
-            center: [outerArc.centerX, outerArc.centerY]
-        });
-        
         // Outer arc
         const outerStartX = outerArc.centerX + outerArc.radius * Math.cos(outerArc.startAngle);
         const outerStartY = outerArc.centerY + outerArc.radius * Math.sin(outerArc.startAngle);
@@ -335,17 +311,7 @@ class GeometryEngine {
         const innerEndX = innerArc.centerX + innerArc.radius * Math.cos(innerArc.endAngle);
         const innerEndY = innerArc.centerY + innerArc.radius * Math.sin(innerArc.endAngle);
         
-        const arcSpan = outerArc.endAngle - outerArc.startAngle;
-        const largeArcFlag = arcSpan > Math.PI ? 1 : 0;
-        
-        console.log('Arc points:', {
-            outerStart: [outerStartX, outerStartY],
-            outerEnd: [outerEndX, outerEndY],
-            innerStart: [innerStartX, innerStartY],
-            innerEnd: [innerEndX, innerEndY],
-            arcSpan: arcSpan * 180 / Math.PI,
-            largeArcFlag
-        });
+        const largeArcFlag = (outerArc.endAngle - outerArc.startAngle) > Math.PI ? 1 : 0;
         
         return `
             M ${outerStartX},${outerStartY}
@@ -407,55 +373,6 @@ class GeometryEngine {
             L ${bottomLeft.x},${bottomLeft.y}
             Z
         `;
-    }
-
-    /**
-     * Calculate tick mark positions (legacy compatibility)
-     * Tick baseline: outer border radius - 25px
-     * Label position: outer border radius + 20px (35px more than before)
-     * @param {number} angle - Current curvature angle (0-360)
-     * @param {number} baseRadius - Base radius (not used in new system)
-     * @param {number} centerX - Center X coordinate
-     * @param {number} centerY - Center Y coordinate
-     * @param {Array} tickPositions - Array of normalized positions (0-1) for ticks
-     * @returns {Array} Array of tick objects with start and end coordinates
-     */
-    calculateTickPositions(angle, baseRadius, centerX, centerY, tickPositions) {
-        const geometry = this.calculateGeometry(angle, centerX, centerY);
-        const ticks = [];
-        const tickLength = 10;
-        
-        // Tick baseline is at outer border - 25px
-        // Labels are at outer border - 35px (inside the border)
-        const tickBaselineOffset = -25 / this.ANNULUS_WIDTH;  // Normalized offset
-        const labelOffset = -35 / this.ANNULUS_WIDTH;  // Normalized offset (negative = inward)
-        
-        for (const t of tickPositions) {
-            // Tick baseline position (outer border - 25px)
-            const baselinePos = this.calculateDataPosition(t, tickBaselineOffset, 1, geometry);
-            
-            // Tick extends inward by tickLength/2 and outward by tickLength/2
-            const innerOffset = tickBaselineOffset + (tickLength / 2) / this.ANNULUS_WIDTH;
-            const outerOffset = tickBaselineOffset - (tickLength / 2) / this.ANNULUS_WIDTH;
-            
-            const innerPos = this.calculateDataPosition(t, innerOffset, 1, geometry);
-            const outerPos = this.calculateDataPosition(t, outerOffset, 1, geometry);
-            
-            // Label position (outer border - 35px)
-            const labelPos = this.calculateDataPosition(t, labelOffset, 1, geometry);
-            
-            ticks.push({
-                x1: innerPos.x,
-                y1: innerPos.y,
-                x2: outerPos.x,
-                y2: outerPos.y,
-                labelX: labelPos.x,
-                labelY: labelPos.y,
-                angle: 0  // Not used in new system
-            });
-        }
-        
-        return ticks;
     }
 
     /**
