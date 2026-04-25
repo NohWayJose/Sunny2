@@ -30,14 +30,11 @@ class GeometryEngine {
      * @param {number} maxValue - Maximum value for scaling
      * @param {number} centerX - Center X coordinate
      * @param {number} centerY - Center Y coordinate
+     * @param {number} maxRadialExtension - Maximum radial extension for data (optional, default 100)
      * @returns {Object} {x, y} coordinates
      */
-    calculatePosition(t, value, angle, baseRadius, maxValue, centerX, centerY) {
+    calculatePosition(t, value, angle, baseRadius, maxValue, centerX, centerY, maxRadialExtension = 100) {
         // Normalize value to radial distance (data extends INWARD from scale)
-        // Max extension is 100px, but constrained to not go past inner border (185px radius)
-        // Available space: baseRadius (305) - innerBorder (185) = 120px
-        // Use 100px max to leave 20px clearance
-        const maxRadialExtension = 100;
         const normalizedValue = Math.min((value / maxValue) * maxRadialExtension, maxRadialExtension);
         const radius = baseRadius - normalizedValue; // SUBTRACT to go inward
 
@@ -53,24 +50,45 @@ class GeometryEngine {
             const lineLength = baseRadius * 2 * Math.PI;
             return {
                 x: centerX - lineLength / 2 + t * lineLength,
-                y: centerY + normalizedValue // POSITIVE to go down (inward)
+                y: centerY - normalizedValue // NEGATIVE to go up (inward toward center)
             };
         } else {
-            // Interpolated mode (partial arc) - unfolds horizontally from bottom
+            // Interpolated mode (partial arc) - use elliptical geometry for smooth transitions
             const angleRad = (angle / 360) * 2 * Math.PI;
-            const theta = t * angleRad + Math.PI / 2 - angleRad / 2;
+            const centerAngle = 3 * Math.PI / 2; // 270° = 12 o'clock
+            const theta = t * angleRad + centerAngle - angleRad / 2;
             
-            // Calculate arc position
-            const arcX = centerX + radius * Math.cos(theta);
-            const arcY = centerY + radius * Math.sin(theta);
+            // Calculate ellipse parameters to maintain minimum 75° angles at transitions
+            // Inner ellipse flattens more aggressively than outer ellipse
+            const blend = angle / 360;
+            
+            // Calculate compression factor based on radius
+            // Smaller radius (inner) = more compression
+            // Larger radius (outer) = less compression
+            // This creates smoother transitions at the inner edge
+            const radiusRatio = radius / baseRadius; // 0 to ~1.4 (inner to outer)
+            
+            // Compression formula:
+            // Inner (radiusRatio ≈ 0.6): compress to 10%
+            // Base (radiusRatio = 1.0): compress to 25%
+            // Outer (radiusRatio ≈ 1.4): compress to 35%
+            const minCompression = 0.10 + (radiusRatio - 0.6) * 0.25; // Varies with radius
+            const compressionFactor = minCompression + (1.0 - minCompression) * blend;
+            
+            // Calculate ellipse radii
+            const radiusX = radius; // Horizontal radius stays constant
+            const radiusY = radius * compressionFactor; // Vertical radius compressed
+            
+            // Calculate elliptical arc position
+            const arcX = centerX + radiusX * Math.cos(theta);
+            const arcY = centerY + radiusY * Math.sin(theta);
             
             // Calculate line position (horizontal)
-            const lineLength = baseRadius * angleRad;
+            const lineLength = baseRadius * 2 * Math.PI; // Full circumference
             const lineX = centerX - lineLength / 2 + t * lineLength;
-            const lineY = centerY + normalizedValue; // POSITIVE to go down (inward)
+            const lineY = centerY - normalizedValue; // NEGATIVE to go up (inward toward center)
             
-            // Blend between arc and line based on angle
-            const blend = angle / 360;
+            // Blend between elliptical arc and line based on angle
             return {
                 x: lineX + (arcX - lineX) * blend,
                 y: lineY + (arcY - lineY) * blend
@@ -122,30 +140,53 @@ class GeometryEngine {
                     angle: 0
                 });
             } else {
-                // Interpolated mode - unfolds from bottom
+                // Interpolated mode - use elliptical geometry (same as borders)
+                const blend = angle / 360;
                 const angleRad = (angle / 360) * 2 * Math.PI;
-                const theta = t * angleRad + Math.PI / 2 - angleRad / 2;
+                const centerAngle = 3 * Math.PI / 2; // 270° = 12 o'clock
+                const theta = t * angleRad + centerAngle - angleRad / 2;
                 const innerRadius = baseRadius - tickLength / 2;
                 const outerRadius = baseRadius + tickLength / 2;
                 
-                // Arc position
+                // Calculate elliptical compression for each radius
+                
+                // Inner tick end (more compressed)
+                const innerRatio = innerRadius / baseRadius;
+                const innerMinComp = 0.10 + (innerRatio - 0.6) * 0.25;
+                const innerCompression = innerMinComp + (1.0 - innerMinComp) * blend;
+                const innerRadiusY = innerRadius * innerCompression;
+                
+                // Outer tick end (less compressed)
+                const outerRatio = outerRadius / baseRadius;
+                const outerMinComp = 0.10 + (outerRatio - 0.6) * 0.25;
+                const outerCompression = outerMinComp + (1.0 - outerMinComp) * blend;
+                const outerRadiusY = outerRadius * outerCompression;
+                
+                // Label position (slightly more compressed than outer)
+                const labelRadius = baseRadius + tickLength + 15;
+                const labelRatio = labelRadius / baseRadius;
+                const labelMinComp = 0.10 + (labelRatio - 0.6) * 0.25;
+                const labelCompression = labelMinComp + (1.0 - labelMinComp) * blend;
+                const labelRadiusY = labelRadius * labelCompression;
+                
+                // Elliptical arc positions
                 const arcX1 = centerX + innerRadius * Math.cos(theta);
-                const arcY1 = centerY + innerRadius * Math.sin(theta);
+                const arcY1 = centerY + innerRadiusY * Math.sin(theta);
                 const arcX2 = centerX + outerRadius * Math.cos(theta);
-                const arcY2 = centerY + outerRadius * Math.sin(theta);
-                const arcLabelX = centerX + (baseRadius + tickLength + 15) * Math.cos(theta);
-                const arcLabelY = centerY + (baseRadius + tickLength + 15) * Math.sin(theta);
+                const arcY2 = centerY + outerRadiusY * Math.sin(theta);
+                const arcLabelX = centerX + labelRadius * Math.cos(theta);
+                const arcLabelY = centerY + labelRadiusY * Math.sin(theta);
                 
                 // Line position (horizontal)
-                const lineLength = baseRadius * angleRad;
+                // Use full circumference as line length to maintain consistent scale
+                const lineLength = baseRadius * 2 * Math.PI; // Full circumference
                 const lineX = centerX - lineLength / 2 + t * lineLength;
                 const lineY1 = centerY - tickLength / 2;
                 const lineY2 = centerY + tickLength / 2;
                 const lineLabelX = lineX;
                 const lineLabelY = centerY + tickLength + 15;
                 
-                // Blend
-                const blend = angle / 360;
+                // Blend between arc and line positions
                 ticks.push({
                     x1: lineX + (arcX1 - lineX) * blend,
                     y1: lineY1 + (arcY1 - lineY1) * blend,
@@ -173,20 +214,22 @@ class GeometryEngine {
             return `M ${centerX - lineLength / 2},${centerY}
                     L ${centerX + lineLength / 2},${centerY}`;
         } else {
-            // Partial arc - unfolds from bottom
-            const angleRad = (angle / 360) * 2 * Math.PI;
-            const startAngle = Math.PI / 2 - angleRad / 2;
-            const endAngle = Math.PI / 2 + angleRad / 2;
+            // Partial arc - use morphed geometry (same as ticks and annulus)
+            const numPoints = 100;
+            let pathData = '';
             
-            const startX = centerX + baseRadius * Math.cos(startAngle);
-            const startY = centerY + baseRadius * Math.sin(startAngle);
-            const endX = centerX + baseRadius * Math.cos(endAngle);
-            const endY = centerY + baseRadius * Math.sin(endAngle);
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                const pos = this.calculatePosition(t, 0, angle, baseRadius, 1, centerX, centerY);
+                
+                if (i === 0) {
+                    pathData = `M ${pos.x},${pos.y}`;
+                } else {
+                    pathData += ` L ${pos.x},${pos.y}`;
+                }
+            }
             
-            const largeArcFlag = angleRad > Math.PI ? 1 : 0;
-            
-            return `M ${startX},${startY}
-                    A ${baseRadius},${baseRadius} 0 ${largeArcFlag},1 ${endX},${endY}`;
+            return pathData;
         }
     }
 

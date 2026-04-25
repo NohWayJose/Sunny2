@@ -7,20 +7,21 @@ class AnnularVisualization {
     constructor(svgId) {
         this.svgId = svgId;
         this.svg = null;
-        this.width = 800;
-        this.height = 800;
+        this.width = 1200;  // Wide viewport for horizontal lines
+        this.height = 800;  // Tall enough for full circles
         this.centerX = this.width / 2;
         this.centerY = this.height / 2;
         
         // Layout dimensions - work from outside in
-        this.outerBorderRadius = 350; // Outer border
+        this.outerBorderRadius = 350; // Outer border (fixed)
         this.labelClearance = 20; // Space between outer border and labels (INSIDE)
         this.labelHeight = 15; // Approximate label height
         this.tickLength = 10; // Tick mark length
-        this.baseRadius = this.outerBorderRadius - this.labelClearance - this.labelHeight - this.tickLength; // Scale position
-        this.dataExtension = 100; // Max data extension inward from scale
-        this.innerClearance = 20; // Space inside data area
-        this.innerBorderRadius = this.baseRadius - this.dataExtension - this.innerClearance; // Inner border
+        
+        // These will be calculated dynamically based on curvature
+        this.baseRadius = 305; // Scale position (will be adjusted)
+        this.dataExtension = 100; // Max data extension inward from scale (will be adjusted)
+        this.innerBorderRadius = 185; // Inner border (will be adjusted)
         
         // Components
         this.geometryEngine = new GeometryEngine();
@@ -119,17 +120,40 @@ class AnnularVisualization {
     drawBaseCircle() {
         this.baseGroup.selectAll('*').remove();
         
-        const path = this.geometryEngine.calculateBasePath(
-            this.currentCurvature,
-            this.baseRadius,
-            this.centerX,
-            this.centerY
-        );
-        
-        this.baseGroup.append('path')
-            .attr('d', path)
-            .attr('class', 'circle-face')
-            .attr('fill', 'none');
+        if (this.currentCurvature >= 359.9) {
+            // Full circle - use SVG arc for perfect circle
+            const path = d3.path();
+            path.arc(this.centerX, this.centerY, this.baseRadius, 0, 2 * Math.PI);
+            
+            this.baseGroup.append('path')
+                .attr('d', path)
+                .attr('class', 'circle-face')
+                .attr('fill', 'none');
+        } else {
+            // Morphing - sample points using geometry engine
+            const numPoints = 100;
+            const points = [];
+            
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                const pos = this.geometryEngine.calculatePosition(
+                    t, 0, this.currentCurvature, this.baseRadius, 1,
+                    this.centerX, this.centerY, this.dataExtension
+                );
+                points.push(pos);
+            }
+            
+            // Build path
+            let pathData = `M ${points[0].x},${points[0].y}`;
+            for (let i = 1; i < points.length; i++) {
+                pathData += ` L ${points[i].x},${points[i].y}`;
+            }
+            
+            this.baseGroup.append('path')
+                .attr('d', pathData)
+                .attr('class', 'circle-face')
+                .attr('fill', 'none');
+        }
     }
 
     /**
@@ -189,43 +213,44 @@ class AnnularVisualization {
                 .attr('stroke-width', 1);
                 
         } else if (this.currentCurvature > 0.1) {
-            // Partial arc - draw annulus segment CENTERED around 6 o'clock (bottom)
-            // The chosen date from time navigator appears at 6 o'clock
-            // Time window extends equally before and after the chosen date
-            const arcRadians = (this.currentCurvature * Math.PI) / 180;
-            const centerAngle = Math.PI / 2; // 90° = 6 o'clock (bottom)
-            const startAngle = centerAngle - arcRadians / 2;
-            const endAngle = centerAngle + arcRadians / 2;
+            // Partial arc - use geometry engine for both borders
+            const numPoints = 100;
+            const outerPoints = [];
+            const innerPoints = [];
             
-            // Calculate points
-            const innerStartX = this.centerX + innerRadius * Math.cos(startAngle);
-            const innerStartY = this.centerY + innerRadius * Math.sin(startAngle);
-            const outerStartX = this.centerX + outerRadius * Math.cos(startAngle);
-            const outerStartY = this.centerY + outerRadius * Math.sin(startAngle);
+            // Sample points using geometry engine for BOTH borders
+            // This ensures they morph the same way as the scale baseline
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                
+                // Outer border: use outerRadius
+                const outerPos = this.geometryEngine.calculatePosition(
+                    t, 0, this.currentCurvature, outerRadius, 1,
+                    this.centerX, this.centerY
+                );
+                
+                // Inner border: use innerRadius
+                const innerPos = this.geometryEngine.calculatePosition(
+                    t, 0, this.currentCurvature, innerRadius, 1,
+                    this.centerX, this.centerY
+                );
+                
+                outerPoints.push(outerPos);
+                innerPoints.push(innerPos);
+            }
             
-            const innerEndX = this.centerX + innerRadius * Math.cos(endAngle);
-            const innerEndY = this.centerY + innerRadius * Math.sin(endAngle);
-            const outerEndX = this.centerX + outerRadius * Math.cos(endAngle);
-            const outerEndY = this.centerY + outerRadius * Math.sin(endAngle);
-            
-            // DEBUG: Log actual positions
-            console.log(`Start: (${outerStartX.toFixed(0)}, ${outerStartY.toFixed(0)}), End: (${outerEndX.toFixed(0)}, ${outerEndY.toFixed(0)}), Center: (${this.centerX}, ${this.centerY})`);
-            
-            // Determine if we need large arc flag
-            const largeArcFlag = arcRadians > Math.PI ? 1 : 0;
-            
-            // Build annulus segment path
-            const segmentPath = [
-                `M ${innerStartX},${innerStartY}`, // Start at inner radius
-                `L ${outerStartX},${outerStartY}`, // Line to outer radius
-                `A ${outerRadius},${outerRadius} 0 ${largeArcFlag},1 ${outerEndX},${outerEndY}`, // Arc along outer
-                `L ${innerEndX},${innerEndY}`, // Line to inner radius
-                `A ${innerRadius},${innerRadius} 0 ${largeArcFlag},0 ${innerStartX},${innerStartY}`, // Arc along inner (reverse)
-                `Z` // Close path
-            ].join(' ');
+            // Build path: start at outer[0], trace outer edge, then inner edge in reverse
+            let pathData = `M ${outerPoints[0].x},${outerPoints[0].y}`;
+            for (let i = 1; i < outerPoints.length; i++) {
+                pathData += ` L ${outerPoints[i].x},${outerPoints[i].y}`;
+            }
+            for (let i = innerPoints.length - 1; i >= 0; i--) {
+                pathData += ` L ${innerPoints[i].x},${innerPoints[i].y}`;
+            }
+            pathData += ' Z';
             
             this.borderGroup.append('path')
-                .attr('d', segmentPath)
+                .attr('d', pathData)
                 .attr('fill', '#fef9f3')
                 .attr('stroke', '#3a3a3a')
                 .attr('stroke-width', 1);
@@ -457,45 +482,14 @@ class AnnularVisualization {
      */
     async loadData(startDate, endDate) {
         try {
-            const days = (endDate - startDate) / (24 * 60 * 60 * 1000);
-            
-            let data;
-            if (days <= 1) {
-                // Use raw data for day view or less
-                const result = await API.getRawData(
-                    this.timeNavigator.formatDateForAPI(startDate),
-                    this.timeNavigator.formatDateForAPI(endDate),
-                    10000
-                );
-                data = result.data.map(d => ({
-                    timestamp: new Date(d.timestamp),
-                    kwh: d.power * (10 / 60), // Convert 10-min power to kWh
-                    year: new Date(d.timestamp).getFullYear()
-                }));
-            } else if (days <= 31) {
-                // Use daily aggregation
-                const result = await API.getDailyData(
-                    this.timeNavigator.formatDateForAPI(startDate),
-                    this.timeNavigator.formatDateForAPI(endDate)
-                );
-                data = result.data.map(d => ({
-                    timestamp: new Date(d.date),
-                    kwh: parseFloat(d.totalKwh),
-                    year: new Date(d.date).getFullYear()
-                }));
+            if (this.allYearsMode) {
+                // Load data for all available years with the same time window pattern
+                await this.loadMultiYearData(startDate, endDate);
             } else {
-                // Use monthly aggregation
-                const startMonth = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                const endMonth = `${endDate.getFullYear()}-${(endDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                const result = await API.getMonthlyData(startMonth, endMonth);
-                data = result.data.map(d => ({
-                    timestamp: new Date(d.month + '-01'),
-                    kwh: parseFloat(d.totalKwh),
-                    year: parseInt(d.month.split('-')[0])
-                }));
+                // Load data for single time period
+                await this.loadSinglePeriodData(startDate, endDate);
             }
             
-            this.currentData = data;
             this.updateInfoDisplay();
         } catch (error) {
             console.error('Error loading data:', error);
@@ -504,9 +498,131 @@ class AnnularVisualization {
     }
 
     /**
+     * Load data for a single time period
+     */
+    async loadSinglePeriodData(startDate, endDate) {
+        const days = (endDate - startDate) / (24 * 60 * 60 * 1000);
+        
+        let data;
+        if (days <= 1) {
+            // Use raw data for day view or less
+            const result = await API.getRawData(
+                this.timeNavigator.formatDateForAPI(startDate),
+                this.timeNavigator.formatDateForAPI(endDate),
+                10000
+            );
+            data = result.data.map(d => ({
+                timestamp: new Date(d.timestamp),
+                kwh: d.power * (10 / 60), // Convert 10-min power to kWh
+                year: new Date(d.timestamp).getFullYear()
+            }));
+        } else if (days <= 31) {
+            // Use daily aggregation
+            const result = await API.getDailyData(
+                this.timeNavigator.formatDateForAPI(startDate),
+                this.timeNavigator.formatDateForAPI(endDate)
+            );
+            data = result.data.map(d => ({
+                timestamp: new Date(d.date),
+                kwh: parseFloat(d.totalKwh),
+                year: new Date(d.date).getFullYear()
+            }));
+        } else {
+            // Use monthly aggregation
+            const startMonth = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}`;
+            const endMonth = `${endDate.getFullYear()}-${(endDate.getMonth() + 1).toString().padStart(2, '0')}`;
+            const result = await API.getMonthlyData(startMonth, endMonth);
+            data = result.data.map(d => ({
+                timestamp: new Date(d.month + '-01'),
+                kwh: parseFloat(d.totalKwh),
+                year: parseInt(d.month.split('-')[0])
+            }));
+        }
+        
+        this.currentData = data;
+    }
+
+    /**
+     * Load data for multiple years with the same time window pattern
+     */
+    async loadMultiYearData(startDate, endDate) {
+        const allData = [];
+        const currentYear = new Date().getFullYear();
+        const startYear = 2012; // First year of data
+        
+        // Calculate the day-of-year range for the time window
+        const startDayOfYear = this.getDayOfYear(startDate);
+        const endDayOfYear = this.getDayOfYear(endDate);
+        
+        // Load data for each year
+        for (let year = startYear; year <= currentYear; year++) {
+            try {
+                // Create date range for this year with same day-of-year pattern
+                const yearStart = this.dateFromDayOfYear(year, startDayOfYear);
+                const yearEnd = this.dateFromDayOfYear(year, endDayOfYear);
+                
+                await this.loadSinglePeriodData(yearStart, yearEnd);
+                allData.push(...this.currentData);
+            } catch (error) {
+                console.warn(`Failed to load data for year ${year}:`, error);
+            }
+        }
+        
+        this.currentData = allData;
+    }
+
+    /**
+     * Get day of year (1-366)
+     */
+    getDayOfYear(date) {
+        const start = new Date(date.getFullYear(), 0, 0);
+        const diff = date - start;
+        const oneDay = 1000 * 60 * 60 * 24;
+        return Math.floor(diff / oneDay);
+    }
+
+    /**
+     * Create date from year and day of year
+     */
+    dateFromDayOfYear(year, dayOfYear) {
+        const date = new Date(year, 0);
+        date.setDate(dayOfYear);
+        return date;
+    }
+
+    /**
+     * Calculate dynamic layout based on current curvature
+     * Maintains perceptual distance from outer edge and scales vertical space
+     */
+    calculateDynamicLayout() {
+        const blend = this.currentCurvature / 360;
+        
+        // Keep scale at fixed position for consistent morphing
+        // Scale always at radius 250 (reduced to fit in new viewport)
+        this.baseRadius = 250;
+        
+        // Data extension: increases as diagram flattens for better visibility
+        // At 360°: 80px, At 0°: 150px (nearly 2x for flat view)
+        this.dataExtension = 80 + (150 - 80) * (1 - blend);
+        
+        // Outer border: increases distance from scale as it flattens
+        // At 360°: 80px from scale, At 0°: 100px from scale
+        const outerDistance = 80 + (100 - 80) * (1 - blend);
+        this.outerBorderRadius = this.baseRadius + outerDistance;
+        
+        // Inner border: maintain 15px clearance
+        this.innerBorderRadius = this.baseRadius - this.dataExtension - 15;
+        
+        console.log(`Layout (blend=${blend.toFixed(2)}): outer=${this.outerBorderRadius.toFixed(0)}, base=${this.baseRadius}, data=${this.dataExtension.toFixed(0)}, inner=${this.innerBorderRadius.toFixed(0)}`);
+    }
+
+    /**
      * Render the visualization
      */
     render() {
+        // Calculate dynamic layout based on current curvature
+        this.calculateDynamicLayout();
+        
         // Update base circle
         this.drawBaseCircle();
         
@@ -533,10 +649,15 @@ class AnnularVisualization {
     drawData() {
         this.dataGroup.selectAll('*').remove();
         
-        if (this.currentData.length === 0) return;
+        if (this.currentData.length === 0) {
+            console.log('No data to draw');
+            return;
+        }
         
         // Find max value for scaling
         const maxValue = d3.max(this.currentData, d => d.kwh) || 1;
+        console.log(`Drawing data: ${this.currentData.length} points, maxValue: ${maxValue.toFixed(2)} kWh`);
+        console.log(`Layout: baseRadius=${this.baseRadius}, dataExtension=${this.dataExtension}, innerRadius=${this.innerBorderRadius}`);
         
         if (this.allYearsMode) {
             // Group by year and draw each separately
@@ -545,6 +666,7 @@ class AnnularVisualization {
             
             dataByYear.forEach((yearData, year) => {
                 const color = this.yearColors[colorIndex % this.yearColors.length];
+                console.log(`  Year ${year}: ${yearData.length} points, color: ${color}`);
                 this.drawDataPath(yearData, maxValue, color);
                 colorIndex++;
             });
@@ -565,19 +687,27 @@ class AnnularVisualization {
         const startTime = timeRange.start.getTime();
         const endTime = timeRange.end.getTime();
         
+        console.log(`  Time range: ${timeRange.start.toISOString()} to ${timeRange.end.toISOString()}`);
+        console.log(`  Data range: ${sortedData[0].timestamp.toISOString()} to ${sortedData[sortedData.length-1].timestamp.toISOString()}`);
+        
         // Calculate positions for each data point based on actual timestamp
-        const points = sortedData.map(d => {
+        const points = sortedData.map((d, i) => {
             // Calculate t based on actual timestamp position in range
             const t = (d.timestamp.getTime() - startTime) / (endTime - startTime);
-            return this.geometryEngine.calculatePosition(
+            const pos = this.geometryEngine.calculatePosition(
                 t,
                 d.kwh,
                 this.currentCurvature,
                 this.baseRadius,
                 maxValue,
                 this.centerX,
-                this.centerY
+                this.centerY,
+                this.dataExtension // Pass dynamic data extension
             );
+            if (i === 0 || i === sortedData.length - 1) {
+                console.log(`    Point ${i}: t=${t.toFixed(3)}, kwh=${d.kwh.toFixed(2)}, pos=(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})`);
+            }
+            return pos;
         });
         
         // Create path - stroke only, no fill
