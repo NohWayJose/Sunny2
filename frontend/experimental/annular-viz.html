@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annular Solar Visualization - Experimental</title>
+    <link rel="stylesheet" href="css/annular-viz.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Annular Solar Visualization</h1>
+            <p class="subtitle">Experimental - Circle-to-Line Morphing Time Window</p>
+        </header>
+
+        <main>
+            <!-- Main Visualization Canvas -->
+            <div class="viz-container">
+                <svg id="annular-viz" width="800" height="800"></svg>
+                <div id="legend" class="legend"></div>
+            </div>
+
+            <!-- Controls Panel -->
+            <div class="controls-panel">
+                <!-- Time Window Slider (Logarithmic) -->
+                <div class="control-group">
+                    <label for="time-window-slider">Time Window</label>
+                    <div class="slider-container">
+                        <input type="range" id="time-window-slider" min="0" max="100" value="100" step="1">
+                        <div class="slider-labels">
+                            <span>1 Hour</span>
+                            <span id="current-window">1 Year</span>
+                            <span>1 Year</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Year Selection Mode Toggle -->
+                <div class="control-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="all-years-toggle">
+                        <span>Show All Years (Multi-Year Overlay)</span>
+                    </label>
+                </div>
+
+                <!-- Multi-Scale Time Navigator -->
+                <div class="control-group time-navigator">
+                    <label>Time Navigator</label>
+                    <div class="navigator-sliders">
+                        <div class="slider-column">
+                            <label>Year</label>
+                            <input type="range" id="year-slider" min="2012" max="2026" value="2024" step="1" orient="vertical">
+                            <span id="year-value">2024</span>
+                        </div>
+                        <div class="slider-column">
+                            <label>Month</label>
+                            <input type="range" id="month-slider" min="1" max="12" value="6" step="1" orient="vertical">
+                            <span id="month-value">Jun</span>
+                        </div>
+                        <div class="slider-column">
+                            <label>Week</label>
+                            <input type="range" id="week-slider" min="1" max="52" value="26" step="1" orient="vertical">
+                            <span id="week-value">26</span>
+                        </div>
+                        <div class="slider-column">
+                            <label>Day</label>
+                            <input type="range" id="day-slider" min="1" max="31" value="15" step="1" orient="vertical">
+                            <span id="day-value">15</span>
+                        </div>
+                        <div class="slider-column">
+                            <label>Hour</label>
+                            <input type="range" id="hour-slider" min="0" max="23" value="12" step="1" orient="vertical">
+                            <span id="hour-value">12:00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Display -->
+                <div class="control-group info-display">
+                    <div class="info-item">
+                        <span class="info-label">Current Time:</span>
+                        <span id="current-time">2024-06-15 12:00</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Total Generation:</span>
+                        <span id="total-generation">0 kWh</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Data Points:</span>
+                        <span id="data-points">0</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Load D3.js -->
+    <script src="../js/d3.v7.min.js"></script>
+    
+    <!-- Load API utilities -->
+    <script src="../js/utils/api.js"></script>
+    
+    <!-- Load visualization modules -->
+    <script src="js/geometry-engine.js"></script>
+    <script src="js/log-slider.js"></script>
+    <script src="js/time-navigator.js"></script>
+    <script src="js/annular-viz.js"></script>
+    
+    <!-- Initialize -->
+    <script>
+        // Initialize the visualization when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const viz = new AnnularVisualization('annular-viz');
+            viz.initialize();
+        });
+    </script>
+</body>
+</html>
