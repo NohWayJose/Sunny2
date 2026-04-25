@@ -1,6 +1,9 @@
 /**
  * Geometry Engine
  * Handles circle-to-line morphing calculations for the annular visualization
+ *
+ * Key principle: All ellipses are keyed off the outer border ellipse geometry.
+ * Everything maintains constant horizontal offsets from the outer border.
  */
 
 class GeometryEngine {
@@ -8,6 +11,31 @@ class GeometryEngine {
         // Constants
         this.ONE_YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
         this.ONE_HOUR_MS = 60 * 60 * 1000;
+    }
+
+    /**
+     * Calculate ellipse Y-radius for a given horizontal radius
+     * This is the master function that defines elliptical compression
+     * @param {number} radiusX - Horizontal radius
+     * @param {number} angle - Current curvature angle (0-360)
+     * @param {number} baseRadius - Reference base radius
+     * @returns {number} Vertical radius (compressed)
+     */
+    calculateEllipseRadiusY(radiusX, angle, baseRadius) {
+        const blend = angle / 360;
+        
+        // Calculate compression factor based on radius
+        // Gentler compression to maintain ≥75° angles
+        const radiusRatio = radiusX / baseRadius;
+        
+        // Compression formula:
+        // Inner (radiusRatio ≈ 0.6): compress to 40%
+        // Base (radiusRatio = 1.0): compress to 60%
+        // Outer (radiusRatio ≈ 1.4): compress to 75%
+        const minCompression = 0.40 + (radiusRatio - 0.6) * 0.875;
+        const compressionFactor = minCompression + (1.0 - minCompression) * blend;
+        
+        return radiusX * compressionFactor;
     }
 
     /**
@@ -53,31 +81,16 @@ class GeometryEngine {
                 y: centerY - normalizedValue // NEGATIVE to go up (inward toward center)
             };
         } else {
-            // Interpolated mode (partial arc) - use elliptical geometry for smooth transitions
+            // Interpolated mode (partial arc) - use elliptical geometry
             const angleRad = (angle / 360) * 2 * Math.PI;
             const centerAngle = 3 * Math.PI / 2; // 270° = 12 o'clock
             const theta = t * angleRad + centerAngle - angleRad / 2;
             
-            // Calculate ellipse parameters to maintain minimum 75° angles at transitions
-            // Inner ellipse flattens more aggressively than outer ellipse
             const blend = angle / 360;
             
-            // Calculate compression factor based on radius
-            // Smaller radius (inner) = more compression
-            // Larger radius (outer) = less compression
-            // This creates smoother transitions at the inner edge
-            const radiusRatio = radius / baseRadius; // 0 to ~1.4 (inner to outer)
-            
-            // Compression formula:
-            // Inner (radiusRatio ≈ 0.6): compress to 10%
-            // Base (radiusRatio = 1.0): compress to 25%
-            // Outer (radiusRatio ≈ 1.4): compress to 35%
-            const minCompression = 0.10 + (radiusRatio - 0.6) * 0.25; // Varies with radius
-            const compressionFactor = minCompression + (1.0 - minCompression) * blend;
-            
-            // Calculate ellipse radii
-            const radiusX = radius; // Horizontal radius stays constant
-            const radiusY = radius * compressionFactor; // Vertical radius compressed
+            // Use master ellipse function
+            const radiusX = radius;
+            const radiusY = this.calculateEllipseRadiusY(radiusX, angle, baseRadius);
             
             // Calculate elliptical arc position
             const arcX = centerX + radiusX * Math.cos(theta);
@@ -140,41 +153,39 @@ class GeometryEngine {
                     angle: 0
                 });
             } else {
-                // Interpolated mode - use elliptical geometry (same as borders)
+                // Interpolated mode - all elements keyed off outer border ellipse
                 const blend = angle / 360;
                 const angleRad = (angle / 360) * 2 * Math.PI;
                 const centerAngle = 3 * Math.PI / 2; // 270° = 12 o'clock
                 const theta = t * angleRad + centerAngle - angleRad / 2;
-                const innerRadius = baseRadius - tickLength / 2;
-                const outerRadius = baseRadius + tickLength / 2;
                 
-                // Calculate elliptical compression for each radius
+                // Calculate outer border radius (varies with curvature)
+                // At 360°: baseRadius + 80, At 0°: baseRadius + 100
+                const outerBorderDistance = 80 + (100 - 80) * (1 - blend);
+                const outerBorderRadiusX = baseRadius + outerBorderDistance;
                 
-                // Inner tick end (more compressed)
-                const innerRatio = innerRadius / baseRadius;
-                const innerMinComp = 0.10 + (innerRatio - 0.6) * 0.25;
-                const innerCompression = innerMinComp + (1.0 - innerMinComp) * blend;
-                const innerRadiusY = innerRadius * innerCompression;
+                // All elements maintain constant horizontal offsets from outer border
+                // Labels: 15px outside outer border
+                const labelRadiusX = outerBorderRadiusX + 15;
+                const labelRadiusY = this.calculateEllipseRadiusY(labelRadiusX, angle, baseRadius);
                 
-                // Outer tick end (less compressed)
-                const outerRatio = outerRadius / baseRadius;
-                const outerMinComp = 0.10 + (outerRatio - 0.6) * 0.25;
-                const outerCompression = outerMinComp + (1.0 - outerMinComp) * blend;
-                const outerRadiusY = outerRadius * outerCompression;
+                // Tick baseline: at baseRadius (inside outer border)
+                const tickBaseRadiusX = baseRadius;
+                const tickBaseRadiusY = this.calculateEllipseRadiusY(tickBaseRadiusX, angle, baseRadius);
                 
-                // Label position (slightly more compressed than outer)
-                const labelRadius = baseRadius + tickLength + 15;
-                const labelRatio = labelRadius / baseRadius;
-                const labelMinComp = 0.10 + (labelRatio - 0.6) * 0.25;
-                const labelCompression = labelMinComp + (1.0 - labelMinComp) * blend;
-                const labelRadiusY = labelRadius * labelCompression;
+                // Tick marks straddle the baseline
+                const innerRadiusX = baseRadius - tickLength / 2;
+                const innerRadiusY = this.calculateEllipseRadiusY(innerRadiusX, angle, baseRadius);
+                
+                const outerRadiusX = baseRadius + tickLength / 2;
+                const outerRadiusY = this.calculateEllipseRadiusY(outerRadiusX, angle, baseRadius);
                 
                 // Elliptical arc positions
-                const arcX1 = centerX + innerRadius * Math.cos(theta);
+                const arcX1 = centerX + innerRadiusX * Math.cos(theta);
                 const arcY1 = centerY + innerRadiusY * Math.sin(theta);
-                const arcX2 = centerX + outerRadius * Math.cos(theta);
+                const arcX2 = centerX + outerRadiusX * Math.cos(theta);
                 const arcY2 = centerY + outerRadiusY * Math.sin(theta);
-                const arcLabelX = centerX + labelRadius * Math.cos(theta);
+                const arcLabelX = centerX + labelRadiusX * Math.cos(theta);
                 const arcLabelY = centerY + labelRadiusY * Math.sin(theta);
                 
                 // Line position (horizontal)
