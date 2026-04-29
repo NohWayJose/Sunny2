@@ -1,10 +1,27 @@
+<!--
+  Solar Dashboard — annular visualisation
+  Copyright (C) 2024-2026 Greg Lubel
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/>.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solar Dashboard - Power Generation Analytics</title>
-    <link rel="stylesheet" href="css/styles.css?v=75">
+    <link rel="stylesheet" href="css/styles.css?v=87">
     <script src="js/d3.v7.min.js"></script>
 </head>
 <body>
@@ -195,22 +212,22 @@
                                 <div class="navigator-sliders">
                                     <div class="slider-column">
                                         <label>Year</label>
-                                        <input type="range" id="year-slider" min="2012" max="2026" value="2024" step="1">
+                                        <input type="range" id="year-slider" min="2012" max="2026" value="2019" step="1" data-dynamic-max="true">
                                         <span id="year-value">2024</span>
                                     </div>
                                     <div class="slider-column">
                                         <label>Month</label>
-                                        <input type="range" id="month-slider" min="1" max="12" value="6" step="1">
+                                        <input type="range" id="month-slider" min="1" max="12" value="7" step="1">
                                         <span id="month-value">Jun</span>
                                     </div>
                                     <div class="slider-column">
                                         <label>Week</label>
-                                        <input type="range" id="week-slider" min="1" max="52" value="26" step="1">
+                                        <input type="range" id="week-slider" min="1" max="52" value="27" step="1">
                                         <span id="week-value">26</span>
                                     </div>
                                     <div class="slider-column">
                                         <label>Day</label>
-                                        <input type="range" id="day-slider" min="1" max="31" value="15" step="1">
+                                        <input type="range" id="day-slider" min="1" max="31" value="16" step="1">
                                         <span id="day-value">15</span>
                                     </div>
                                     <div class="slider-column">
@@ -224,8 +241,8 @@
                             <!-- Sigma Band Toggle -->
                             <div class="control-group">
                                 <label class="checkbox-label">
-                                    <input type="checkbox" id="sigma-band-toggle">
-                                    <span id="sigma-band-label">σ band: off</span>
+                                    <input type="checkbox" id="sigma-band-toggle" checked>
+                                    <span id="sigma-band-label">⊃σ band: all years</span>
                                     <span class="sigma-swatch"></span>
                                 </label>
                             </div>
@@ -329,10 +346,10 @@
     <script src="js/utils/api.js"></script>
     <script src="js/geometry-engine.js"></script>
     <script src="js/log-slider.js"></script>
-    <script src="js/time-navigator.js?v=75"></script>
-    <script src="js/annular-viz.js?v=75"></script>
+    <script src="js/time-navigator.js?v=87"></script>
+    <script src="js/annular-viz.js?v=87"></script>
     <script src="js/charts/roiCharts.js"></script>
     <script src="js/tabManager.js"></script>
-    <script src="js/main.js?v=75"></script>
+    <script src="js/main.js?v=87"></script>
 </body>
 </html>

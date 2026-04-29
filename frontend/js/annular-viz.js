@@ -1,3 +1,19 @@
+// Solar Dashboard — annular visualisation
+// Copyright (C) 2024-2026 Greg Lubel
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 /**
  * Annular Visualization
  * Main class that orchestrates the circle-to-line morphing solar data visualization
@@ -39,8 +55,10 @@ class AnnularVisualization {
         this.currentTimeWindow = this.geometryEngine.ONE_YEAR_MS;
         this.visibleYears = new Set(); // Track which years are visible (for checkboxes)
         this.hiddenYears = new Set(); // Track which years user explicitly hid
-        this.sigmaBandMode = 0; // 0=off, 1=visible years, 2=all years
+        this.sigmaBandMode = 2; // 0=off, 1=visible years, 2=all years — default to all years
+        this.sigmaData = [];   // multi-year data for sigma in single-year display mode
         this.labelFontScale = 1.0;
+        this.lastCenteredTimeWindow = null;
         this.aggregationPeriod = 'days'; // Current aggregation period label
         
         // Data cache: key = "startDate-endDate", value = data array
@@ -193,10 +211,15 @@ class AnnularVisualization {
         if (allYearsToggle) {
             allYearsToggle.addEventListener('change', (e) => {
                 this.allYearsMode = e.target.checked;
-                // Toggle legend sidebar visibility
                 this.toggleLegendSidebar(this.allYearsMode);
-                // Don't clear visibleYears when toggling mode
-                // Year slider should always be enabled
+                // "Visible years" (state 1) only makes sense in all-years mode;
+                // snap to "all years" (state 2) when switching to single-year
+                if (!this.allYearsMode && this.sigmaBandMode === 1) {
+                    this.sigmaBandMode = 2;
+                    sigmaBandToggle.indeterminate = false;
+                    sigmaBandToggle.checked = true;
+                    if (sigmaBandLabel) sigmaBandLabel.textContent = SIGMA_LABELS[2];
+                }
                 this.loadAndRender();
             });
             
@@ -207,11 +230,18 @@ class AnnularVisualization {
             if (sigmaBandToggle) {
                 sigmaBandToggle.addEventListener('click', (e) => {
                     e.preventDefault();
-                    this.sigmaBandMode = (this.sigmaBandMode + 1) % 3;
+                    if (this.allYearsMode) {
+                        // All Years mode: off → selected years → all years → off
+                        this.sigmaBandMode = (this.sigmaBandMode + 1) % 3;
+                    } else {
+                        // Single Year mode: off ↔ all years (no mode switch, no "selected years")
+                        this.sigmaBandMode = this.sigmaBandMode === 0 ? 2 : 0;
+                    }
                     sigmaBandToggle.indeterminate = this.sigmaBandMode === 1;
                     sigmaBandToggle.checked       = this.sigmaBandMode === 2;
                     if (sigmaBandLabel) sigmaBandLabel.textContent = SIGMA_LABELS[this.sigmaBandMode];
-                    this.render();
+                    // In single year mode, sigma still needs all-years data — load it separately
+                    this.loadAndRender();
                 });
             }
         }
@@ -499,43 +529,41 @@ class AnnularVisualization {
         const majorTicks = [];
         const minorTicks = [];
         const labels = [];
-        
-        // Calculate number of months to display based on time window
-        const days = this.currentTimeWindow / (24 * 60 * 60 * 1000);
-        const numMonths = Math.min(12, Math.round(days / 30));
-        
-        // Get the actual date range to calculate real day positions
+
         const timeRange = this.timeNavigator.getDateRange(this.currentTimeWindow);
         const startTime = timeRange.start.getTime();
-        const endTime = timeRange.end.getTime();
-        const totalMs = endTime - startTime;
-        
-        // Get the year for month calculations
-        const year = timeRange.start.getFullYear();
-        
-        for (let i = 0; i < numMonths; i++) {
-            // Calculate the actual timestamp for the 1st of this month
-            const monthStart = new Date(year, i, 1, 0, 0, 0, 0);
+        const endTime   = timeRange.end.getTime();
+        const totalMs   = endTime - startTime;
+
+        // Walk month-by-month through the actual date range, not January→numMonths
+        let m    = timeRange.start.getMonth();
+        let year = timeRange.start.getFullYear();
+
+        for (let iter = 0; iter < 15; iter++) {          // 15 iterations = more than a year
+            const monthStart   = new Date(year, m, 1, 0, 0, 0, 0);
             const monthStartMs = monthStart.getTime();
-            
-            // Calculate position as fraction of total time range
+            if (monthStartMs > endTime) break;
+
             const t = (monthStartMs - startTime) / totalMs;
-            majorTicks.push(t);
-            labels.push(monthNames[i]);
-            
-            // Add weekly minor ticks based on actual days
-            const daysInMonth = new Date(year, i + 1, 0).getDate();
-            for (let j = 1; j < 4; j++) {
-                const weekDay = Math.floor(daysInMonth * j / 4);
-                const weekDate = new Date(year, i, weekDay, 0, 0, 0, 0);
-                const weekMs = weekDate.getTime();
-                const weekT = (weekMs - startTime) / totalMs;
-                if (weekT >= 0 && weekT <= 1) {
-                    minorTicks.push(weekT);
+            if (t >= 0 && t <= 1) {
+                majorTicks.push(t);
+                labels.push(monthNames[m]);
+
+                // Weekly minor ticks within this month
+                const daysInMonth = new Date(year, m + 1, 0).getDate();
+                for (let j = 1; j < 4; j++) {
+                    const weekDay  = Math.floor(daysInMonth * j / 4);
+                    const weekDate = new Date(year, m, weekDay, 0, 0, 0, 0);
+                    const weekT    = (weekDate.getTime() - startTime) / totalMs;
+                    if (weekT >= 0 && weekT <= 1) minorTicks.push(weekT);
                 }
             }
+
+            // Advance to next month
+            m++;
+            if (m > 11) { m = 0; year++; }
         }
-        
+
         return { majorTicks, minorTicks, labels };
     }
 
@@ -689,6 +717,14 @@ class AnnularVisualization {
             if (this.allYearsMode) {
                 // Load data for all available years with the same time window pattern
                 await this.loadMultiYearData(startDate, endDate);
+            } else if (this.sigmaBandMode > 0) {
+                // Single year mode with sigma: load display data normally,
+                // then load all-years data separately for the band computation
+                await this.loadSinglePeriodData(startDate, endDate);
+                const savedData = this.currentData;
+                await this.loadMultiYearData(startDate, endDate);
+                this.sigmaData = this.currentData;
+                this.currentData = savedData;
             } else {
                 // Load data for single time period
                 await this.loadSinglePeriodData(startDate, endDate);
@@ -1014,8 +1050,12 @@ class AnnularVisualization {
         // Draw data (after legend so visibleYears is set)
         this.drawData();
 
-        // Recentre viewBox on the actual content's centre of mass
-        this.centerOnContent();
+        // Recentre only when the time window duration changes (i.e. geometry shape changes).
+        // Skipping on navigator updates avoids erratic shifting during month/week dragging.
+        if (this.currentTimeWindow !== this.lastCenteredTimeWindow) {
+            this.centerOnContent();
+            this.lastCenteredTimeWindow = this.currentTimeWindow;
+        }
     }
 
     setLabelFontScale(scale) {
@@ -1185,8 +1225,9 @@ class AnnularVisualization {
         // Draw a ring for each band
         const scaleValues = [];
         for (let value = minBand; value <= maxBand; value += bandSize) {
-            // Skip if exactly 0 (baseline)
+            // Skip baseline and any ring that would exceed the effective max (outside outer arc)
             if (Math.abs(value) < 0.001) continue;
+            if (value > maxValue * 1.001) continue;
             
             scaleValues.push(value);
             
@@ -1287,7 +1328,8 @@ class AnnularVisualization {
                 colorIndex++;
             });
         } else {
-            // Draw single year
+            // Draw σ band behind single year line if enabled (uses separately loaded sigmaData)
+            if (this.sigmaBandMode > 0) this.drawSigmaBand(maxValue);
             this.drawDataPath(this.currentData, maxValue, this.singleYearColor, null, false);
         }
     }
@@ -1302,10 +1344,16 @@ class AnnularVisualization {
             this.currentCurvature, this.centerX, this.centerY
         );
 
-        // Mode 1: visible years only; mode 2: all years regardless of legend
-        const sourceData = this.sigmaBandMode === 2
-            ? this.currentData
-            : this.currentData.filter(d => this.visibleYears.has(d.year));
+        // In single-year display mode, use the separately loaded sigmaData.
+        // In all-years mode: mode 1 = visible years, mode 2 = all years.
+        let sourceData;
+        if (!this.allYearsMode) {
+            sourceData = this.sigmaData;
+        } else if (this.sigmaBandMode === 2) {
+            sourceData = this.currentData;
+        } else {
+            sourceData = this.currentData.filter(d => this.visibleYears.has(d.year));
+        }
 
         // Normalise each point to t ∈ [0,1] using its own year's window
         const normalised = sourceData.map(d => {

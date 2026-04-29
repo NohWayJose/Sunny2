@@ -1,3 +1,19 @@
+// Solar Dashboard — annular visualisation
+// Copyright (C) 2024-2026 Greg Lubel
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 /**
  * Main Dashboard Controller
  * Handles UI interactions and coordinates annular visualization
@@ -19,7 +35,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeSettingsModal();
     initializeStatsToggle();
     initializeSidebarToggles();
-    
+    setupKeyboardZoom();
+
     // Initialize annular visualization first (don't wait for stats)
     await initializeAnnularViz();
     
@@ -72,7 +89,7 @@ function initializeSettingsModal() {
 
     if (!menuItem || !modal) return;
 
-    const STEPS = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0];
+    const STEPS = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0];
     let currentStep = 0;
 
     function applyStep() {
@@ -460,7 +477,15 @@ function hideOldControls() {
 async function initializeAnnularViz() {
     try {
         console.log('Initializing annular visualization...');
-        
+
+        // Set year slider max to current year dynamically
+        const yearSlider = document.getElementById('year-slider');
+        if (yearSlider) {
+            const currentYear = new Date().getFullYear();
+            yearSlider.max = currentYear;
+            yearSlider.value = Math.round((parseInt(yearSlider.min) + currentYear) / 2);
+        }
+
         // Create annular visualization instance
         annularViz = new AnnularVisualization('annular-viz');
         window.annularViz = annularViz;
@@ -551,6 +576,44 @@ function hideError() {
 }
 
 /**
+ * Keyboard zoom: Up/+ to zoom in, Down/- to zoom out.
+ * Mirrors the mobile pinch-to-zoom range (1x–2x) in 0.1 steps.
+ */
+function setupKeyboardZoom() {
+    const target = document.querySelector('.viz-container');
+    if (!target) return;
+
+    target.style.transformOrigin = 'center center';
+    let currentScale = 1.0;
+
+    document.addEventListener('keydown', (e) => {
+        // Don't intercept when typing in a control
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+        let changed = false;
+        if (e.key === 'ArrowUp' || e.key === '+' || e.key === '=') {
+            currentScale = Math.min(3.0, parseFloat((currentScale + 0.1).toFixed(1)));
+            changed = true;
+        } else if (e.key === 'ArrowDown' || e.key === '-') {
+            currentScale = Math.max(1.0, parseFloat((currentScale - 0.1).toFixed(1)));
+            changed = true;
+        }
+
+        if (changed) {
+            e.preventDefault();
+            target.style.transform = currentScale === 1.0 ? '' : `scale(${currentScale})`;
+        }
+    });
+
+    target.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.1 : -0.1;
+        currentScale = Math.min(3.0, Math.max(1.0, parseFloat((currentScale + delta).toFixed(1))));
+        target.style.transform = currentScale === 1.0 ? '' : `scale(${currentScale})`;
+    }, { passive: false });
+}
+
+/**
  * Two-finger pinch-to-zoom for the visualization (mobile only).
  * Scales between 1x and 2x, centred on the element.
  */
@@ -580,7 +643,7 @@ function setupPinchZoom() {
     target.addEventListener('touchmove', (e) => {
         if (e.touches.length === 2 && startDist !== null) {
             e.preventDefault();
-            const scale = Math.min(2, Math.max(1, startScale * pinchDist(e.touches) / startDist));
+            const scale = Math.min(3, Math.max(1, startScale * pinchDist(e.touches) / startDist));
             currentScale = scale;
             target.style.transform = `scale(${scale})`;
         }

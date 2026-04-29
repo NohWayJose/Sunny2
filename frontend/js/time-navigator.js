@@ -1,3 +1,19 @@
+// Solar Dashboard — annular visualisation
+// Copyright (C) 2024-2026 Greg Lubel
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 /**
  * Time Navigator
  * Manages the 5-slider time navigation system with synchronized movement
@@ -5,9 +21,14 @@
 
 class TimeNavigator {
     constructor() {
-        // Initialize to current date at 12:00 (noon)
-        this.currentTimestamp = new Date();
-        this.currentTimestamp.setHours(12, 0, 0, 0);
+        // Default to the central position of all sliders rather than today's date.
+        // Year is centred between the slider's min (2012) and the current year.
+        const yearSlider = document.getElementById('year-slider');
+        const minYear = yearSlider ? parseInt(yearSlider.min) : 2012;
+        const maxYear = new Date().getFullYear();
+        const centralYear = Math.round((minYear + maxYear) / 2);
+        // July 16 is the midpoint of the year; noon is the midpoint of the day.
+        this.currentTimestamp = new Date(centralYear, 6, 16, 12, 0, 0, 0);
         this.listeners = [];
         
         // Month names for display
