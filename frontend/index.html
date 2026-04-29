@@ -4,21 +4,63 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solar Dashboard - Power Generation Analytics</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=75">
     <script src="js/d3.v7.min.js"></script>
 </head>
 <body>
+    <!-- Hamburger Menu (fixed, outside container) -->
+    <div class="hamburger-menu" id="hamburger-menu" role="button" tabindex="0" aria-label="Menu">☰</div>
+    
     <div class="container">
         <!-- Header -->
-        <header class="header">
+        <header class="header compact-header">
             <div class="header-content">
                 <h1>🌞 Solar Dashboard</h1>
-                <p class="subtitle">Power Generation Analytics (March 2012 - Present)</p>
             </div>
         </header>
 
-        <!-- Controls -->
-        <div class="controls">
+        <!-- Hamburger Menu Dropdown -->
+        <div class="menu-dropdown" id="menu-dropdown">
+            <button class="menu-item" id="about-menu-item">About</button>
+            <button class="menu-item" id="settings-menu-item">Settings</button>
+        </div>
+
+        <!-- About Modal -->
+        <div class="modal" id="about-modal">
+            <div class="modal-content">
+                <span class="modal-close" id="modal-close">&times;</span>
+                <h2>About This Dashboard</h2>
+                <p>This solar dashboard visualizes power generation data from March 2012 to present using an innovative annular (circular-to-line morphing) visualization.</p>
+                <h3>Features:</h3>
+                <ul>
+                    <li><strong>Time Window Control:</strong> Adjust from 1 hour to 1 year of data</li>
+                    <li><strong>Multi-Year Overlay:</strong> Compare multiple years simultaneously</li>
+                    <li><strong>Interactive Legend:</strong> Click to highlight specific years</li>
+                    <li><strong>Amplitude Scaling:</strong> Auto-fit or use global maximum</li>
+                    <li><strong>Time Navigation:</strong> Precise control over date and time</li>
+                </ul>
+                <p><strong>Data Source:</strong> Solar panel generation data (kWh) collected every 5 minutes</p>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div class="modal" id="settings-modal">
+            <div class="modal-content">
+                <span class="modal-close" id="settings-modal-close">&times;</span>
+                <h2>Settings</h2>
+                <div class="settings-row">
+                    <span class="settings-label">Label size</span>
+                    <div class="font-size-control">
+                        <button class="font-btn" id="font-size-down" aria-label="Decrease">&#9660;</button>
+                        <span id="font-size-display">100%</span>
+                        <button class="font-btn" id="font-size-up" aria-label="Increase">&#9650;</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls (hidden by default) -->
+        <div class="controls" style="display: none;">
             <div class="control-group">
                 <label for="viewType">View:</label>
                 <select id="viewType" class="select-input">
@@ -44,27 +86,33 @@
             </div>
         </div>
 
-        <!-- Summary Stats -->
-        <div class="stats-container" id="statsContainer">
-            <div class="stat-card">
-                <div class="stat-label">Total Generation</div>
-                <div class="stat-value" id="totalGeneration">-</div>
-                <div class="stat-unit">kWh</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Average</div>
-                <div class="stat-value" id="avgGeneration">-</div>
-                <div class="stat-unit">kWh/period</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Peak Period</div>
-                <div class="stat-value" id="peakPeriod">-</div>
-                <div class="stat-unit" id="peakValue">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Data Points</div>
-                <div class="stat-value" id="dataPoints">-</div>
-                <div class="stat-unit">records</div>
+        <!-- Collapsible Summary Stats -->
+        <div class="stats-section">
+            <button class="stats-toggle" id="stats-toggle">
+                <span>Summary Statistics</span>
+                <span class="toggle-arrow">▶</span>
+            </button>
+            <div class="stats-container collapsed" id="statsContainer">
+                <div class="stat-card">
+                    <div class="stat-label">Total Generation</div>
+                    <div class="stat-value" id="totalGeneration">-</div>
+                    <div class="stat-unit">kWh</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Average</div>
+                    <div class="stat-value" id="avgGeneration">-</div>
+                    <div class="stat-unit">kWh/period</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Peak Period</div>
+                    <div class="stat-value" id="peakPeriod">-</div>
+                    <div class="stat-unit" id="peakValue">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Data Points</div>
+                    <div class="stat-value" id="dataPoints">-</div>
+                    <div class="stat-unit">records</div>
+                </div>
             </div>
         </div>
 
@@ -84,16 +132,116 @@
             <div class="tab-content">
                 <!-- Generation Tab -->
                 <div id="generation-tab" class="tab-pane active">
-                    <!-- Chart Container -->
-                    <div class="chart-container">
-                        <div id="loadingIndicator" class="loading-indicator">
-                            <div class="spinner"></div>
-                            <p>Loading data...</p>
+                    <!-- Three-column layout with collapsible sidebars -->
+                    <div class="viz-layout">
+                        <!-- Left Sidebar (Legend) -->
+                        <div id="legend-sidebar" class="sidebar left-sidebar">
+                            <button class="sidebar-toggle" id="legend-toggle" aria-label="Toggle Legend">
+                                <span class="toggle-icon">◀</span>
+                            </button>
+                            <div class="sidebar-content">
+                                <h3>Legend</h3>
+                                <div id="legend" class="legend"></div>
+                            </div>
                         </div>
-                        <div id="errorMessage" class="error-message" style="display: none;">
-                            <p>⚠️ <span id="errorText"></span></p>
+
+                        <!-- Center Content (Visualization) -->
+                        <div class="viz-center">
+                            <div id="loadingIndicator" class="loading-indicator">
+                                <div class="spinner"></div>
+                                <p>Loading data...</p>
+                            </div>
+                            <div id="errorMessage" class="error-message" style="display: none;">
+                                <p>⚠️ <span id="errorText"></span></p>
+                            </div>
+                            
+                            <div class="viz-container">
+                                <svg id="annular-viz" width="1200" height="800"></svg>
+                            </div>
                         </div>
-                        <div id="chart"></div>
+
+                        <!-- Right Sidebar (Controls) -->
+                        <div id="controls-sidebar" class="sidebar right-sidebar">
+                            <button class="sidebar-toggle" id="controls-toggle" aria-label="Toggle Controls">
+                                <span class="toggle-icon">▶</span>
+                            </button>
+                            <div class="sidebar-content">
+                                <h3>Controls</h3>
+                                <div class="controls-panel">
+                            <!-- Time Window Slider -->
+                            <div class="control-group">
+                                <label for="time-window-slider">Time Window</label>
+                                <div class="slider-container">
+                                    <input type="range" id="time-window-slider" min="0" max="100" value="100" step="1">
+                                    <div class="slider-labels">
+                                        <span>1 Hour</span>
+                                        <span id="current-window">1 Year</span>
+                                        <span>1 Year</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- All Years Toggle -->
+                            <div class="control-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="all-years-toggle">
+                                    <span>Show All Years (Multi-Year Overlay)</span>
+                                </label>
+                            </div>
+
+                            <!-- Time Navigator -->
+                            <div class="control-group time-navigator">
+                                <label>Time Navigator</label>
+                                <div class="navigator-sliders">
+                                    <div class="slider-column">
+                                        <label>Year</label>
+                                        <input type="range" id="year-slider" min="2012" max="2026" value="2024" step="1">
+                                        <span id="year-value">2024</span>
+                                    </div>
+                                    <div class="slider-column">
+                                        <label>Month</label>
+                                        <input type="range" id="month-slider" min="1" max="12" value="6" step="1">
+                                        <span id="month-value">Jun</span>
+                                    </div>
+                                    <div class="slider-column">
+                                        <label>Week</label>
+                                        <input type="range" id="week-slider" min="1" max="52" value="26" step="1">
+                                        <span id="week-value">26</span>
+                                    </div>
+                                    <div class="slider-column">
+                                        <label>Day</label>
+                                        <input type="range" id="day-slider" min="1" max="31" value="15" step="1">
+                                        <span id="day-value">15</span>
+                                    </div>
+                                    <div class="slider-column">
+                                        <label>Hour</label>
+                                        <input type="range" id="hour-slider" min="0" max="23" value="12" step="1">
+                                        <span id="hour-value">12:00</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Sigma Band Toggle -->
+                            <div class="control-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="sigma-band-toggle">
+                                    <span id="sigma-band-label">σ band: off</span>
+                                    <span class="sigma-swatch"></span>
+                                </label>
+                            </div>
+
+                            <!-- Amplitude Slider -->
+                            <div class="control-group amplitude-control">
+                                <label for="amplitude-slider">Amplitude Scale</label>
+                                <input type="range" id="amplitude-slider" min="0" max="100" value="0" step="1">
+                                <div class="slider-labels">
+                                    <span>Auto</span>
+                                    <span>100%</span>
+                                </div>
+                            </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -170,25 +318,6 @@
             </div>
         </div>
 
-        <!-- Info Panel -->
-        <div class="info-panel">
-            <h3>About This Dashboard</h3>
-            <p>
-                This dashboard visualizes solar panel power generation data collected every 10 minutes 
-                since March 2012. Use the controls above to explore different time periods and aggregation levels.
-            </p>
-            <div class="info-grid">
-                <div class="info-item">
-                    <strong>Daily View:</strong> Shows total kWh generated per day
-                </div>
-                <div class="info-item">
-                    <strong>Monthly View:</strong> Shows total kWh generated per month
-                </div>
-                <div class="info-item">
-                    <strong>Yearly View:</strong> Shows total kWh generated per year
-                </div>
-            </div>
-        </div>
 
         <!-- Footer -->
         <footer class="footer">
@@ -198,11 +327,12 @@
 
     <!-- Scripts -->
     <script src="js/utils/api.js"></script>
-    <script src="js/charts/dailyChart.js"></script>
-    <script src="js/charts/monthlyChart.js"></script>
-    <script src="js/charts/yearlyChart.js"></script>
+    <script src="js/geometry-engine.js"></script>
+    <script src="js/log-slider.js"></script>
+    <script src="js/time-navigator.js?v=75"></script>
+    <script src="js/annular-viz.js?v=75"></script>
     <script src="js/charts/roiCharts.js"></script>
     <script src="js/tabManager.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/main.js?v=75"></script>
 </body>
 </html>

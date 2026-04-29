@@ -1,4 +1,4 @@
- /**
+/**
  * Time Navigator
  * Manages the 5-slider time navigation system with synchronized movement
  */
@@ -37,6 +37,15 @@ class TimeNavigator {
             day: document.getElementById('day-value'),
             hour: document.getElementById('hour-value')
         };
+
+        // Check if all required elements exist
+        const allSlidersExist = Object.values(this.sliders).every(slider => slider !== null);
+        const allDisplaysExist = Object.values(this.displays).every(display => display !== null);
+        
+        if (!allSlidersExist || !allDisplaysExist) {
+            console.error('Time Navigator: Missing required slider or display elements');
+            throw new Error('Time Navigator initialization failed: missing DOM elements');
+        }
 
         // Attach event listeners
         this.sliders.year.addEventListener('input', () => this.onYearChange());

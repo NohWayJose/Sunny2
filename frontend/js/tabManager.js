@@ -6,6 +6,8 @@ class TabManager {
     constructor() {
         this.currentTab = 'generation';
         this.roiLoaded = false;
+        this.roiUnlocked = false;
+        this.fitPassword = '61agwsso199ew';
         this.init();
     }
 
@@ -23,6 +25,16 @@ class TabManager {
     }
 
     switchTab(tabName) {
+        // Check if ROI tab requires password
+        if (tabName === 'roi' && !this.roiUnlocked) {
+            const password = prompt('Enter password to access FIT Earnings & ROI:');
+            if (password !== this.fitPassword) {
+                alert('Incorrect password');
+                return;
+            }
+            this.roiUnlocked = true;
+        }
+
         // Update button states
         document.querySelectorAll('.tab-button').forEach(btn => {
             btn.classList.remove('active');

@@ -19,11 +19,12 @@
                 <svg id="annular-viz" width="1200" height="800"></svg>
                 <div id="legend" class="legend"></div>
             </div>
-
-            <!-- Controls Panel -->
-            <div class="controls-panel">
-                <!-- Time Window Slider (Logarithmic) -->
-                <div class="control-group">
+        </main>
+        
+        <!-- Controls Panel -->
+        <div class="controls-panel">
+            <!-- Time Window Slider (Logarithmic) -->
+            <div class="control-group">
                     <label for="time-window-slider">Time Window</label>
                     <div class="slider-container">
                         <input type="range" id="time-window-slider" min="0" max="100" value="100" step="1">
@@ -75,6 +76,31 @@
                     </div>
                 </div>
 
+                <!-- Aggregation Control -->
+                <div class="control-group">
+                    <label for="aggregation-mode">Data Aggregation</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <select id="aggregation-mode">
+                            <option value="sum">Sum over</option>
+                            <option value="average">Average over</option>
+                        </select>
+                        <span id="aggregation-period" style="font-weight: bold;">days</span>
+                    </div>
+                </div>
+
+                <!-- Amplitude Zoom Slider -->
+                <div class="control-group">
+                    <label for="amplitude-slider">Amplitude Scale</label>
+                    <div class="slider-container">
+                        <input type="range" id="amplitude-slider" min="0" max="100" value="0" step="1">
+                        <div class="slider-labels">
+                            <span>Auto-fit</span>
+                            <span id="amplitude-value">100%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Info Display -->
                 <div class="control-group info-display">
                     <div class="info-item">
@@ -90,8 +116,7 @@
                         <span id="data-points">0</span>
                     </div>
                 </div>
-            </div>
-        </main>
+        </div>
     </div>
 
     <!-- Load D3.js -->

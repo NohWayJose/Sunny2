@@ -7,9 +7,13 @@ class AnnularVisualization {
     constructor(svgId) {
         this.svgId = svgId;
         this.svg = null;
+        this.containerElement = null;
         
-        // Responsive dimensions - will be calculated based on viewport
-        this.updateDimensions();
+        // Initial dimensions (will be updated by calculateDimensions)
+        this.width = 1200;
+        this.height = 800;
+        this.centerX = this.width / 2;
+        this.centerY = this.height / 2 + 30;
         
         // Layout dimensions - work from outside in
         this.outerBorderRadius = 350; // Outer border (fixed)
@@ -35,7 +39,8 @@ class AnnularVisualization {
         this.currentTimeWindow = this.geometryEngine.ONE_YEAR_MS;
         this.visibleYears = new Set(); // Track which years are visible (for checkboxes)
         this.hiddenYears = new Set(); // Track which years user explicitly hid
-        this.aggregationMode = 'sum'; // 'sum' or 'average'
+        this.sigmaBandMode = 0; // 0=off, 1=visible years, 2=all years
+        this.labelFontScale = 1.0;
         this.aggregationPeriod = 'days'; // Current aggregation period label
         
         // Data cache: key = "startDate-endDate", value = data array
@@ -60,40 +65,18 @@ class AnnularVisualization {
             '#3a86ff', '#8ac926', '#ff006e', '#fb5607', '#ffbe0b'
         ];
     }
-    /**
-     * Update dimensions based on viewport size
-     */
-    updateDimensions() {
-        const container = document.getElementById(this.svgId);
-        if (container) {
-            const containerWidth = container.parentElement.clientWidth;
-            const isMobile = window.innerWidth <= 768;
-            
-            if (isMobile) {
-                // Mobile: use full container width, maintain aspect ratio
-                this.width = Math.min(containerWidth - 20, 600);
-                this.height = this.width;
-            } else {
-                // Desktop: fixed size
-                this.width = 1200;
-                this.height = 800;
-            }
-        } else {
-            // Fallback if container not found
-            this.width = 1200;
-            this.height = 800;
-        }
-        
-        this.centerX = this.width / 2;
-        this.centerY = this.height / 2 + 30;
-    }
-
 
     /**
      * Initialize the visualization
      */
     async initialize() {
         try {
+            // Get container element
+            this.containerElement = document.getElementById(this.svgId)?.parentElement;
+            
+            // Calculate initial dimensions
+            this.calculateDimensions();
+            
             // Setup SVG
             this.setupSVG();
             
@@ -104,21 +87,60 @@ class AnnularVisualization {
             // Setup event listeners
             this.setupEventListeners();
             
-            // Handle window resize
-            window.addEventListener('resize', () => {
-                this.updateDimensions();
-                this.setupSVG();
-                this.render();
-            });
+            // Setup resize listener
+            this.setupResizeListener();
             
-            // Initial render
+            // Initialize legend sidebar state (hidden by default)
+            this.toggleLegendSidebar(false);
+            
+            // Initial render with loading indicator
+            this.showLoadingIndicator();
             await this.loadAndRender();
+            this.hideLoadingIndicator();
             
             console.log('Annular visualization initialized successfully');
         } catch (error) {
             console.error('Error initializing visualization:', error);
+            this.hideLoadingIndicator();
             this.showError('Failed to initialize visualization');
         }
+    }
+
+    /**
+     * Calculate dimensions based on container size
+     */
+    calculateDimensions() {
+        // The geometry engine works in a fixed 1200x800 coordinate space.
+        // We keep the viewBox fixed and let CSS scale the SVG element visually.
+        this.width = 1200;
+        this.height = 800;
+        this.centerX = 600;
+        this.centerY = 430;
+        this.outerBorderRadius = 350;
+        this.baseRadius = 305;
+        this.dataExtension = 100;
+        this.innerBorderRadius = 185;
+    }
+
+    /**
+     * Setup resize listener
+     */
+    setupResizeListener() {
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                this.handleResize();
+            }, 250); // Debounce resize events
+        });
+    }
+
+    /**
+     * Handle window resize
+     */
+    handleResize() {
+        // ViewBox is fixed at 1200x800; CSS scales the SVG element.
+        this.render();
     }
 
     /**
@@ -126,8 +148,10 @@ class AnnularVisualization {
      */
     setupSVG() {
         this.svg = d3.select(`#${this.svgId}`)
-            .attr('viewBox', `0 0 ${this.width} ${this.height}`)
-            .attr('preserveAspectRatio', 'xMidYMid meet');
+            .attr('viewBox', '120 0 960 800')
+            .attr('preserveAspectRatio', 'xMidYMid meet')
+            .style('width', '100%')
+            .style('height', 'auto');
         
         // Create defs for clip paths
         this.defs = this.svg.append('defs');
@@ -169,123 +193,59 @@ class AnnularVisualization {
         if (allYearsToggle) {
             allYearsToggle.addEventListener('change', (e) => {
                 this.allYearsMode = e.target.checked;
+                // Toggle legend sidebar visibility
+                this.toggleLegendSidebar(this.allYearsMode);
                 // Don't clear visibleYears when toggling mode
                 // Year slider should always be enabled
                 this.loadAndRender();
             });
             
-            // Aggregation mode selector
-            const aggregationModeSelect = document.getElementById('aggregation-mode');
-            if (aggregationModeSelect) {
-                aggregationModeSelect.addEventListener('change', (e) => {
-                    this.aggregationMode = e.target.value;
-                    this.loadAndRender();
+            // Sigma band tristate toggle: off → visible years → all years → off
+            const sigmaBandToggle = document.getElementById('sigma-band-toggle');
+            const sigmaBandLabel  = document.getElementById('sigma-band-label');
+            const SIGMA_LABELS = ['σ band: off', 'σ band: visible', '⊃σ band: all years'];
+            if (sigmaBandToggle) {
+                sigmaBandToggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.sigmaBandMode = (this.sigmaBandMode + 1) % 3;
+                    sigmaBandToggle.indeterminate = this.sigmaBandMode === 1;
+                    sigmaBandToggle.checked       = this.sigmaBandMode === 2;
+                    if (sigmaBandLabel) sigmaBandLabel.textContent = SIGMA_LABELS[this.sigmaBandMode];
+                    this.render();
                 });
             }
-        
-        // Mobile swipe gestures for controls panel
-        this.setupMobileSwipeGestures();
         }
         
-        // Amplitude slider
+        // Amplitude slider with logarithmic scaling
         const amplitudeSlider = document.getElementById('amplitude-slider');
-        const amplitudeValue = document.getElementById('amplitude-value');
-        if (amplitudeSlider && amplitudeValue) {
+        if (amplitudeSlider) {
             amplitudeSlider.addEventListener('input', (e) => {
-                // Slider value 0-100 maps to amplitude scale 1.0-0.0 (inverted)
-                // 0 = no magnification (use global max)
-                // 100 = full magnification (auto-fit to current data max)
-                this.amplitudeScale = 1.0 - (parseFloat(e.target.value) / 100);
-                amplitudeValue.textContent = `${e.target.value}%`;
+                // Slider value 0-100 with logarithmic mapping
+                // 0 = No change (amplitudeScale = 1.0, use global max)
+                // 100 = 100% magnification (amplitudeScale = 0.0, use current data max)
+                
+                const sliderValue = parseFloat(e.target.value);
+                
+                if (sliderValue === 100) {
+                    // 100% magnification: use current data max
+                    this.amplitudeScale = 0.0;
+                } else if (sliderValue === 0) {
+                    // No change: use global max
+                    this.amplitudeScale = 1.0;
+                } else {
+                    // Logarithmic scale from 1 to 99
+                    // Map slider 1-99 to amplitudeScale 0.99-0.01 logarithmically (inverted)
+                    const minLog = Math.log(0.01);
+                    const maxLog = Math.log(0.99);
+                    const scale = (maxLog - minLog) / 99; // 99 steps from 1 to 99
+                    // Invert: slider 1 -> 0.99, slider 99 -> 0.01
+                    this.amplitudeScale = Math.exp(maxLog - scale * (sliderValue - 1));
+                }
                 
                 // Re-render with new amplitude scale (no need to reload data)
                 this.render();
             });
         }
-    }
-
-    /**
-     * Setup mobile swipe gestures for controls panel
-     */
-    setupMobileSwipeGestures() {
-        const controlsPanel = document.querySelector('.controls-panel');
-        if (!controlsPanel) return;
-        
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let touchEndX = 0;
-        let touchEndY = 0;
-        let isPanelOpen = false;
-        
-        // Check if mobile
-        const isMobile = () => window.innerWidth <= 768;
-        
-        // Handle touch start
-        const handleTouchStart = (e) => {
-            if (!isMobile()) return;
-            
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        };
-        
-        // Handle touch move
-        const handleTouchMove = (e) => {
-            if (!isMobile()) return;
-            
-            touchEndX = e.touches[0].clientX;
-            touchEndY = e.touches[0].clientY;
-        };
-        
-        // Handle touch end
-        const handleTouchEnd = (e) => {
-            if (!isMobile()) return;
-            
-            const deltaX = touchEndX - touchStartX;
-            const deltaY = touchEndY - touchStartY;
-            
-            // Only trigger if horizontal swipe is dominant
-            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-                if (deltaX < 0 && !isPanelOpen) {
-                    // Swipe left - open panel
-                    controlsPanel.classList.add('open');
-                    isPanelOpen = true;
-                } else if (deltaX > 0 && isPanelOpen) {
-                    // Swipe right - close panel
-                    controlsPanel.classList.remove('open');
-                    isPanelOpen = false;
-                }
-            }
-        };
-        
-        // Listen for swipes from right edge to open
-        document.addEventListener('touchstart', (e) => {
-            if (!isMobile()) return;
-            
-            const touchX = e.touches[0].clientX;
-            const screenWidth = window.innerWidth;
-            
-            // If touch starts near right edge (within 50px) and panel is closed
-            if (touchX > screenWidth - 50 && !isPanelOpen) {
-                handleTouchStart(e);
-                document.addEventListener('touchmove', handleTouchMove);
-                document.addEventListener('touchend', handleTouchEnd, { once: true });
-            }
-        });
-        
-        // Listen for swipes on panel to close
-        controlsPanel.addEventListener('touchstart', handleTouchStart);
-        controlsPanel.addEventListener('touchmove', handleTouchMove);
-        controlsPanel.addEventListener('touchend', handleTouchEnd);
-        
-        // Close panel when clicking outside on mobile
-        document.addEventListener('click', (e) => {
-            if (!isMobile() || !isPanelOpen) return;
-            
-            if (!controlsPanel.contains(e.target)) {
-                controlsPanel.classList.remove('open');
-                isPanelOpen = false;
-            }
-        });
     }
 
     /**
@@ -307,8 +267,9 @@ class AnnularVisualization {
         
         for (let i = 0; i <= numPoints; i++) {
             const t = i / numPoints;
-            // Use a small negative value to position slightly inward from outer border
-            const pos = this.geometryEngine.calculateDataPosition(t, -0.05, 1, geometry);
+            // 5px inside the tick bases (which sit at the outer ring)
+            const baselineOffset = 1 - 5 / this.geometryEngine.ANNULUS_WIDTH;
+            const pos = this.geometryEngine.calculateDataPosition(t, baselineOffset, 1, geometry);
             points.push(pos);
         }
         
@@ -399,6 +360,7 @@ class AnnularVisualization {
                     .attr('x', tick.labelX)
                     .attr('y', tick.labelY)
                     .attr('class', 'tick-label')
+                    .attr('font-size', `${Math.round(11 * this.labelFontScale)}px`)
                     .text(labels[i]);
             }
         });
@@ -486,7 +448,7 @@ class AnnularVisualization {
                 };
             } else {
                 // Mode 1 and 3: Use normalized offset
-                const labelOffset = -65 / this.geometryEngine.ANNULUS_WIDTH;
+                const labelOffset = 1 + 65 / this.geometryEngine.ANNULUS_WIDTH;
                 pos = this.geometryEngine.calculateDataPosition(t, labelOffset, geometry.mode, geometry);
             }
             
@@ -495,7 +457,7 @@ class AnnularVisualization {
                 .attr('y', pos.y)
                 .attr('text-anchor', anchor)
                 .attr('dominant-baseline', 'middle')
-                .attr('font-size', '11px')
+                .attr('font-size', `${Math.round(11 * this.labelFontScale)}px`)
                 .attr('font-weight', 'bold')
                 .attr('fill', '#333')
                 .text(formatTimestamp(date));
@@ -718,9 +680,10 @@ class AnnularVisualization {
      */
     async loadData(startDate, endDate) {
         try {
-            // Calculate absolute maximum once across all available data
+            // Set absolute maximum immediately (no calculation needed)
             if (!this.absoluteMaxCalculated) {
-                await this.calculateAbsoluteMaximum();
+                this.absoluteMaxValue = 50; // Default for daily data
+                this.absoluteMaxCalculated = true;
             }
             
             if (this.allYearsMode) {
@@ -760,40 +723,11 @@ class AnnularVisualization {
      * Uses daily data to match the visualization granularity
      */
     async calculateAbsoluteMaximum() {
-        try {
-            console.log('Calculating absolute maximum across all data...');
-            
-            // Get daily data for all available years to find the peak
-            const currentYear = new Date().getFullYear();
-            const startYear = 2012;
-            let absoluteMax = 0;
-            
-            for (let year = startYear; year <= currentYear; year++) {
-                try {
-                    const startDate = `${year}-01-01`;
-                    const endDate = `${year}-12-31`;
-                    const result = await API.getDailyData(startDate, endDate);
-                    
-                    if (result.data && result.data.length > 0) {
-                        const yearMax = d3.max(result.data, d => parseFloat(d.totalKwh));
-                        absoluteMax = Math.max(absoluteMax, yearMax);
-                    }
-                } catch (error) {
-                    console.warn(`Failed to get data for year ${year}:`, error);
-                }
-            }
-            
-            // Add 10% headroom for better visualization
-            this.absoluteMaxValue = absoluteMax * 1.1;
-            this.absoluteMaxCalculated = true;
-            
-            console.log(`Absolute maximum calculated: ${this.absoluteMaxValue.toFixed(2)} kWh (daily)`);
-        } catch (error) {
-            console.error('Error calculating absolute maximum:', error);
-            // Fallback to a reasonable default for daily data
-            this.absoluteMaxValue = 15;
-            this.absoluteMaxCalculated = true;
-        }
+        // Skip calculation entirely - use reasonable default
+        // This prevents mobile browsers from hanging on 14+ sequential API calls
+        console.log('Using default absolute maximum for mobile compatibility');
+        this.absoluteMaxValue = 50; // Reasonable default for daily data
+        this.absoluteMaxCalculated = true;
     }
 
     /**
@@ -926,29 +860,6 @@ class AnnularVisualization {
             }));
         }
         
-        // Apply aggregation mode (sum or average)
-        if (this.aggregationMode === 'average' && data.length > 0) {
-            // Convert from total energy (kWh) to average power (kW) over the period
-            // This makes the values comparable across different aggregation periods
-            let periodsPerHour;
-            if (aggregationPeriod === 'days') {
-                periodsPerHour = 24; // 24 hours per day
-            } else if (aggregationPeriod === '6 hours') {
-                periodsPerHour = 6;
-            } else if (aggregationPeriod === '1 hour') {
-                periodsPerHour = 1;
-            } else { // 10 minutes
-                periodsPerHour = 1/6; // 10 minutes = 1/6 hour
-            }
-            
-            // Divide by hours to get average kW
-            data = data.map(d => ({
-                ...d,
-                kwh: d.kwh / periodsPerHour
-            }));
-            
-            console.log(`Applied average mode: divided by ${periodsPerHour} hours`);
-        }
         
         // Update aggregation period display to show the actual tick period
         this.aggregationPeriod = aggregationPeriod;
@@ -1049,7 +960,7 @@ class AnnularVisualization {
             // Mode 1: Circular
             this.outerBorderRadius = geometry.outerArc.radius;
             this.innerBorderRadius = geometry.innerArc.radius;
-            this.baseRadius = geometry.outerArc.radius;
+            this.baseRadius = geometry.innerArc.radius;
             this.dataExtension = geometry.outerArc.radius - geometry.innerArc.radius;
         } else if (geometry.mode === 2) {
             // Mode 2: Dual arc - use actual arc radii
@@ -1102,6 +1013,29 @@ class AnnularVisualization {
         
         // Draw data (after legend so visibleYears is set)
         this.drawData();
+
+        // Recentre viewBox on the actual content's centre of mass
+        this.centerOnContent();
+    }
+
+    setLabelFontScale(scale) {
+        this.labelFontScale = scale;
+        this.render();
+    }
+
+    centerOnContent() {
+        try {
+            const bbox = this.svg.node().getBBox();
+            if (bbox.width === 0 && bbox.height === 0) return;
+
+            const cx = bbox.x + bbox.width  / 2;
+            const cy = bbox.y + bbox.height / 2;
+
+            // Keep same viewport size (960×800), just shift origin to centre content
+            this.svg.attr('viewBox', `${cx - 480} ${cy - 400} 960 800`);
+        } catch (e) {
+            // getBBox unavailable (e.g. hidden tab) — leave viewBox unchanged
+        }
     }
 
     /**
@@ -1124,27 +1058,14 @@ class AnnularVisualization {
             .attr('id', 'annulus-clip');
         
         if (geometry.mode === 1) {
-            // Mode 1: Circular annulus with gap at bottom
-            // Create path that traces outer arc, then inner arc in reverse
-            const outerArc = d3.arc()
-                .innerRadius(0)
-                .outerRadius(geometry.outerArc.radius)
-                .startAngle(geometry.outerArc.startAngle)
-                .endAngle(geometry.outerArc.endAngle);
-            
-            const innerArc = d3.arc()
-                .innerRadius(0)
-                .outerRadius(geometry.innerArc.radius)
-                .startAngle(geometry.innerArc.startAngle)
-                .endAngle(geometry.innerArc.endAngle);
-            
-            // Use d3.arc to create annulus shape
+            // Full annular ring clip — data only exists within the arc span by construction
+            // so no angular clipping is needed, and it avoids d3/SVG angle convention mismatches
             const annulusArc = d3.arc()
                 .innerRadius(geometry.innerArc.radius)
                 .outerRadius(geometry.outerArc.radius)
-                .startAngle(geometry.outerArc.startAngle)
-                .endAngle(geometry.outerArc.endAngle);
-            
+                .startAngle(0)
+                .endAngle(2 * Math.PI);
+
             clipPath.append('path')
                 .attr('d', annulusArc)
                 .attr('transform', `translate(${geometry.outerArc.centerX}, ${geometry.outerArc.centerY})`);
@@ -1320,7 +1241,7 @@ class AnnularVisualization {
                 .attr('y', pos.y)
                 .attr('text-anchor', 'middle')
                 .attr('dominant-baseline', 'middle')
-                .attr('font-size', '10px')
+                .attr('font-size', `${Math.round(10 * this.labelFontScale)}px`)
                 .attr('font-family', 'monospace')
                 .attr('fill', '#000000')
                 .attr('opacity', 0.7)
@@ -1348,10 +1269,13 @@ class AnnularVisualization {
         console.log(`Layout: baseRadius=${this.baseRadius}, dataExtension=${this.dataExtension}, innerRadius=${this.innerBorderRadius}`);
         
         if (this.allYearsMode) {
+            // Draw σ band behind individual year lines (if enabled)
+            if (this.sigmaBandMode > 0) this.drawSigmaBand(maxValue);
+
             // Group by year and draw each separately
             const dataByYear = d3.group(this.currentData, d => d.year);
             let colorIndex = 0;
-            
+
             dataByYear.forEach((yearData, year) => {
                 // Only draw if year is visible (checked in legend)
                 if (this.visibleYears.has(year)) {
@@ -1366,6 +1290,69 @@ class AnnularVisualization {
             // Draw single year
             this.drawDataPath(this.currentData, maxValue, this.singleYearColor, null, false);
         }
+    }
+
+    /**
+     * Draw ±1σ band across all visible years in all-years mode.
+     * Band is drawn behind individual year lines.
+     */
+    drawSigmaBand(maxValue) {
+        const timeRange = this.timeNavigator.getDateRange(this.currentTimeWindow);
+        const geometry = this.geometryEngine.calculateGeometry(
+            this.currentCurvature, this.centerX, this.centerY
+        );
+
+        // Mode 1: visible years only; mode 2: all years regardless of legend
+        const sourceData = this.sigmaBandMode === 2
+            ? this.currentData
+            : this.currentData.filter(d => this.visibleYears.has(d.year));
+
+        // Normalise each point to t ∈ [0,1] using its own year's window
+        const normalised = sourceData.map(d => {
+                const yr = d.timestamp.getFullYear();
+                const yrStart = new Date(yr, timeRange.start.getMonth(), timeRange.start.getDate(),
+                    timeRange.start.getHours(), timeRange.start.getMinutes()).getTime();
+                const yrEnd   = new Date(yr, timeRange.end.getMonth(),   timeRange.end.getDate(),
+                    timeRange.end.getHours(),   timeRange.end.getMinutes()).getTime();
+                const t = Math.max(0, Math.min(1, (d.timestamp.getTime() - yrStart) / (yrEnd - yrStart)));
+                return { t, kwh: d.kwh };
+            });
+
+        // Bin into 100 equal slices along t
+        const N = 100;
+        const bins = Array.from({ length: N }, () => []);
+        normalised.forEach(({ t, kwh }) => {
+            bins[Math.min(N - 1, Math.floor(t * N))].push(kwh);
+        });
+
+        // Compute mean ± σ per bin (skip bins with fewer than 2 years of data)
+        const stats = bins.map((vals, i) => {
+            if (vals.length < 2) return null;
+            const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+            const sigma = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
+            return { t: (i + 0.5) / N, upper: mean + sigma, lower: Math.max(0, mean - sigma) };
+        }).filter(Boolean);
+
+        if (stats.length < 2) return;
+
+        // Build closed polygon: upper edge forward, lower edge backward
+        const upper = stats.map(s =>
+            this.geometryEngine.calculateDataPosition(s.t, s.upper, maxValue, geometry));
+        const lower = [...stats].reverse().map(s =>
+            this.geometryEngine.calculateDataPosition(s.t, s.lower, maxValue, geometry));
+
+        const polygon = [...upper, ...lower];
+
+        const closedPath = d3.line().x(d => d.x).y(d => d.y)
+            .curve(d3.curveCardinal.tension(0.5));
+
+        this.dataGroup.append('path')
+            .datum(polygon)
+            .attr('d', closedPath(polygon) + ' Z')
+            .attr('clip-path', 'url(#annulus-clip)')
+            .style('fill', 'rgba(150,150,150,0.4)')
+            .style('stroke', 'rgba(100,100,100,0.7)')
+            .style('stroke-width', 2);
     }
 
     /**
@@ -1544,6 +1531,24 @@ class AnnularVisualization {
             dataPointsDisplay.textContent = this.currentData.length;
         }
     }
+    /**
+     * Toggle legend sidebar visibility based on all-years mode
+     */
+    toggleLegendSidebar(show) {
+        const legendSidebar = document.getElementById('legend-sidebar');
+        if (!legendSidebar) return;
+        
+        if (show) {
+            // Show and open the sidebar
+            legendSidebar.style.display = 'flex';
+            legendSidebar.classList.add('open');
+        } else {
+            // Hide the sidebar completely
+            legendSidebar.style.display = 'none';
+            legendSidebar.classList.remove('open');
+        }
+    }
+
 
     /**
      * Update legend for multi-year mode with checkboxes
@@ -1698,6 +1703,46 @@ class AnnularVisualization {
         const legend = document.getElementById('legend');
         if (legend) {
             legend.classList.remove('active');
+        }
+    }
+
+    /**
+     * Show loading indicator
+     */
+    showLoadingIndicator() {
+        // Create loading overlay if it doesn't exist
+        let overlay = document.getElementById('viz-loading-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'viz-loading-overlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+                color: white;
+                font-size: 18px;
+                font-family: Arial, sans-serif;
+            `;
+            overlay.innerHTML = '<div>Loading solar data...</div>';
+            document.body.appendChild(overlay);
+        }
+        overlay.style.display = 'flex';
+    }
+
+    /**
+     * Hide loading indicator
+     */
+    hideLoadingIndicator() {
+        const overlay = document.getElementById('viz-loading-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
         }
     }
 

@@ -328,7 +328,7 @@ class GeometryEngine {
      * @returns {Object} {x, y} coordinates
      */
     calculateDataPosition(t, value, maxValue, geometry) {
-        const normalizedValue = Math.min(value / maxValue, 1.0);
+        const normalizedValue = value / maxValue;
         
         if (geometry.mode === 1) {
             return this.calculateMode1Position(t, normalizedValue, geometry);
@@ -348,8 +348,8 @@ class GeometryEngine {
         // Interpolate angle along the arc
         const angle = outerArc.startAngle + t * (outerArc.endAngle - outerArc.startAngle);
         
-        // Interpolate radius between outer and inner
-        const radius = outerArc.radius - normalizedValue * (outerArc.radius - innerArc.radius);
+        // Interpolate radius: 0 = inner (baseline), 1 = outer (maximum)
+        const radius = innerArc.radius + normalizedValue * (outerArc.radius - innerArc.radius);
         
         return {
             x: outerArc.centerX + radius * Math.cos(angle),
@@ -396,7 +396,7 @@ class GeometryEngine {
         
         return {
             x: topLeft.x + t * width,
-            y: topLeft.y + normalizedValue * height
+            y: topLeft.y + (1 - normalizedValue) * height
         };
     }
 
@@ -586,13 +586,12 @@ class GeometryEngine {
                     y: geometry.outerArc.centerY + labelRadius * Math.sin(tickAngle)
                 };
             } else {
-                // Mode 1 and 3: Use normalized offsets
-                const tickBaselineOffset = -25 / this.ANNULUS_WIDTH;
-                const labelOffset = -35 / this.ANNULUS_WIDTH;
-                
-                const innerOffset = tickBaselineOffset + (tickLength / 2) / this.ANNULUS_WIDTH;
-                const outerOffset = tickBaselineOffset - (tickLength / 2) / this.ANNULUS_WIDTH;
-                
+                // Mode 1 and 3: ticks start at the outer arc and extend outward.
+                // innerOffset = 1.0 anchors the tick base at the outer ring.
+                const innerOffset = 1.0;
+                const outerOffset = 1 + tickLength / this.ANNULUS_WIDTH;
+                const labelOffset = 1 + (tickLength + 12) / this.ANNULUS_WIDTH;
+
                 innerPos = this.calculateDataPosition(t, innerOffset, 1, geometry);
                 outerPos = this.calculateDataPosition(t, outerOffset, 1, geometry);
                 labelPos = this.calculateDataPosition(t, labelOffset, 1, geometry);
